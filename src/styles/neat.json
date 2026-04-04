@@ -1,0 +1,71 @@
+{
+  "name": "neat",
+  "defaults": {
+    "anchorCount": 6,
+    "spacing": 14,
+    "slant": 6,
+    "baselineJitter": 0.6,
+    "spacingJitter": 0.8,
+    "roundness": 0.62,
+    "connectionSmoothness": 0.58,
+    "anchorJitter": 0.35,
+    "angleJitter": 0.4,
+    "strokeWidth": 2,
+    "strokeColor": "#111111",
+    "strokeBreakChance": 0,
+    "strokeBreakLength": 8
+  },
+  "letters": {
+    "h": { "char": "h", "anchors": [
+      { "id": "h-1", "x": 8, "y": 70, "type": "entry" },
+      { "id": "h-2", "x": 12, "y": 22, "type": "normal" },
+      { "id": "h-3", "x": 16, "y": 70, "type": "normal" },
+      { "id": "h-4", "x": 30, "y": 48, "type": "normal" },
+      { "id": "h-5", "x": 42, "y": 70, "type": "exit" }
+    ]},
+    "e": { "char": "e", "anchors": [
+      { "id": "e-1", "x": 8, "y": 62, "type": "entry" },
+      { "id": "e-2", "x": 16, "y": 52, "type": "normal" },
+      { "id": "e-3", "x": 32, "y": 56, "type": "normal" },
+      { "id": "e-4", "x": 34, "y": 69, "type": "normal" },
+      { "id": "e-5", "x": 18, "y": 72, "type": "normal" },
+      { "id": "e-6", "x": 38, "y": 70, "type": "exit" }
+    ]},
+    "l": { "char": "l", "anchors": [
+      { "id": "l-1", "x": 10, "y": 70, "type": "entry" },
+      { "id": "l-2", "x": 14, "y": 18, "type": "normal" },
+      { "id": "l-3", "x": 18, "y": 68, "type": "normal" },
+      { "id": "l-4", "x": 24, "y": 70, "type": "exit" }
+    ]},
+    "o": { "char": "o", "anchors": [
+      { "id": "o-1", "x": 8, "y": 66, "type": "entry" },
+      { "id": "o-2", "x": 16, "y": 54, "type": "normal" },
+      { "id": "o-3", "x": 30, "y": 54, "type": "normal" },
+      { "id": "o-4", "x": 36, "y": 66, "type": "normal" },
+      { "id": "o-5", "x": 28, "y": 74, "type": "normal" },
+      { "id": "o-6", "x": 16, "y": 74, "type": "normal" },
+      { "id": "o-7", "x": 38, "y": 70, "type": "exit" }
+    ]},
+    "a": { "char": "a", "anchors": [
+      { "id": "a-1", "x": 8, "y": 68, "type": "entry" },
+      { "id": "a-2", "x": 18, "y": 55, "type": "normal" },
+      { "id": "a-3", "x": 31, "y": 58, "type": "normal" },
+      { "id": "a-4", "x": 33, "y": 71, "type": "normal" },
+      { "id": "a-5", "x": 19, "y": 74, "type": "normal" },
+      { "id": "a-6", "x": 36, "y": 70, "type": "exit" }
+    ]},
+    "n": { "char": "n", "anchors": [
+      { "id": "n-1", "x": 8, "y": 70, "type": "entry" },
+      { "id": "n-2", "x": 10, "y": 48, "type": "normal" },
+      { "id": "n-3", "x": 19, "y": 66, "type": "normal" },
+      { "id": "n-4", "x": 30, "y": 49, "type": "normal" },
+      { "id": "n-5", "x": 40, "y": 70, "type": "exit" }
+    ]},
+    "t": { "char": "t", "anchors": [
+      { "id": "t-1", "x": 12, "y": 70, "type": "entry" },
+      { "id": "t-2", "x": 16, "y": 22, "type": "normal" },
+      { "id": "t-3", "x": 20, "y": 68, "type": "normal" },
+      { "id": "t-4", "x": 28, "y": 70, "type": "exit" }
+    ]}
+  }
+}

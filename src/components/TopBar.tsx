@@ -1,11 +1,26 @@
 interface TopBarProps {
   char: string;
   text: string;
+  selectedStyle: string;
+  styles: string[];
   onCharChange: (value: string) => void;
   onTextChange: (value: string) => void;
+  onStyleChange: (style: string) => void;
+  onApplyPreset: (preset: string) => void;
+  onExportSvg: () => void;
 }
 
-export function TopBar({ char, text, onCharChange, onTextChange }: TopBarProps) {
+export function TopBar({
+  char,
+  text,
+  selectedStyle,
+  styles,
+  onCharChange,
+  onTextChange,
+  onStyleChange,
+  onApplyPreset,
+  onExportSvg,
+}: TopBarProps) {
   return (
     <header className="app-header">
       <h1>InkForge</h1>
@@ -30,6 +45,24 @@ export function TopBar({ char, text, onCharChange, onTextChange }: TopBarProps) 
           className="text-input"
         />
       </div>
+      <div className="style-selector">
+        <label htmlFor="style-select">Style:</label>
+        <select id="style-select" value={selectedStyle} onChange={(e) => onStyleChange(e.target.value)}>
+          {styles.map((style) => (
+            <option key={style} value={style}>
+              {style}
+            </option>
+          ))}
+        </select>
+      </div>
+      <div className="preset-buttons">
+        {styles.map((preset) => (
+          <button key={preset} onClick={() => onApplyPreset(preset)}>
+            {preset}
+          </button>
+        ))}
+      </div>
+      <button className="export-btn" onClick={onExportSvg}>Export SVG</button>
     </header>
   );
 }

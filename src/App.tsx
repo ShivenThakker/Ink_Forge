@@ -8,13 +8,14 @@ import { DEFAULT_PARAMS } from './engine/types';
 import { renderSingleLetter, renderTextToSvg } from './engine/renderer';
 import { layoutText } from './engine/layout';
 import { generateConnectors } from './engine/connector';
-import { demoStyle } from './styles/demoStyle';
+import { STYLE_NAMES, STYLE_PRESETS } from './styles';
 import './App.css';
 
 function App() {
   const [char, setChar] = useState('a');
   const [text, setText] = useState('hello');
-  const [params, setParams] = useState({ ...DEFAULT_PARAMS, ...demoStyle.defaults });
+  const [selectedStyle, setSelectedStyle] = useState('normal');
+  const [params, setParams] = useState({ ...DEFAULT_PARAMS, ...STYLE_PRESETS.normal.defaults });
   const [exportedLetters, setExportedLetters] = useState<LetterDefinition[]>([]);
   const [variationTick, setVariationTick] = useState(0);
 
@@ -28,6 +29,7 @@ function App() {
   };
 
   const latestExport = exportedLetters[exportedLetters.length - 1];
+  const baseStyle = STYLE_PRESETS[selectedStyle] ?? STYLE_PRESETS.normal;
 
   const customLetters = exportedLetters.reduce<Record<string, LetterDefinition>>((acc, letter) => {
     if (letter.char) {
@@ -37,10 +39,10 @@ function App() {
   }, {});
 
   const activeStyle: HandwritingStyle = {
-    ...demoStyle,
+    ...baseStyle,
     defaults: params,
     letters: {
-      ...demoStyle.letters,
+      ...baseStyle.letters,
       ...customLetters,
     },
   };
@@ -48,6 +50,23 @@ function App() {
   const layoutResult = layoutText(text, activeStyle, params, `layout-${variationTick}-${text}`);
   const connectorPaths = generateConnectors(layoutResult.letters, params.connectionSmoothness);
   const fullPipeline = renderTextToSvg(text, activeStyle, params, `pipeline-${variationTick}-${text}`);
+
+  const handleApplyPreset = (styleName: string) => {
+    const preset = STYLE_PRESETS[styleName];
+    if (!preset) return;
+    setSelectedStyle(styleName);
+    setParams({ ...DEFAULT_PARAMS, ...preset.defaults });
+  };
+
+  const handleExportSvg = () => {
+    const blob = new Blob([fullPipeline.svg], { type: 'image/svg+xml' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `inkforge_${selectedStyle}_${text || 'sample'}.svg`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
 
   const renderResult = latestExport
     ? renderSingleLetter(latestExport, {
@@ -64,7 +83,17 @@ function App() {
 
   return (
     <div className="app">
-      <TopBar char={char} text={text} onCharChange={setChar} onTextChange={setText} />
+      <TopBar
+        char={char}
+        text={text}
+        selectedStyle={selectedStyle}
+        styles={STYLE_NAMES}
+        onCharChange={setChar}
+        onTextChange={setText}
+        onStyleChange={handleApplyPreset}
+        onApplyPreset={handleApplyPreset}
+        onExportSvg={handleExportSvg}
+      />
 
       <ControlPanel params={params} onParamChange={handleParamChange} />
 

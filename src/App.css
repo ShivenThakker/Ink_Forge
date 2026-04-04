@@ -33,6 +33,41 @@
   gap: 0.5rem;
 }
 
+.style-selector {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.style-selector select {
+  padding: 0.3rem 0.5rem;
+  border: 2px solid #ccc;
+  border-radius: 4px;
+  background: #fff;
+}
+
+.preset-buttons {
+  display: flex;
+  gap: 0.4rem;
+  flex-wrap: wrap;
+}
+
+.preset-buttons button,
+.export-btn {
+  border: 1px solid #c8c8c8;
+  background: #f7f7f7;
+  color: #222;
+  border-radius: 4px;
+  padding: 0.35rem 0.6rem;
+  font-size: 0.8rem;
+  cursor: pointer;
+}
+
+.preset-buttons button:hover,
+.export-btn:hover {
+  background: #ececec;
+}
+
 .char-input {
   width: 3rem;
   font-size: 1.5rem;
