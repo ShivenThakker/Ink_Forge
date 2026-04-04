@@ -1,9 +1,12 @@
 import { useState } from 'react';
+import { ControlPanel } from './components/ControlPanel';
 import { LetterEditor } from './components/LetterEditor';
+import { PreviewCanvas } from './components/PreviewCanvas';
+import { TopBar } from './components/TopBar';
 import type { HandwritingStyle, LetterDefinition } from './engine/types';
+import { DEFAULT_PARAMS } from './engine/types';
 import { renderSingleLetter, renderTextToSvg } from './engine/renderer';
 import { layoutText } from './engine/layout';
-import { catmullRomToPath, roundnessToTension } from './engine/spline';
 import { generateConnectors } from './engine/connector';
 import { demoStyle } from './styles/demoStyle';
 import './App.css';
@@ -11,12 +14,17 @@ import './App.css';
 function App() {
   const [char, setChar] = useState('a');
   const [text, setText] = useState('hello');
+  const [params, setParams] = useState({ ...DEFAULT_PARAMS, ...demoStyle.defaults });
   const [exportedLetters, setExportedLetters] = useState<LetterDefinition[]>([]);
   const [variationTick, setVariationTick] = useState(0);
 
   const handleExport = (definition: LetterDefinition) => {
     setExportedLetters(prev => [...prev, definition]);
     console.log('Exported:', definition);
+  };
+
+  const handleParamChange = <K extends keyof typeof params>(key: K, value: (typeof params)[K]) => {
+    setParams((prev) => ({ ...prev, [key]: value }));
   };
 
   const latestExport = exportedLetters[exportedLetters.length - 1];
@@ -30,53 +38,35 @@ function App() {
 
   const activeStyle: HandwritingStyle = {
     ...demoStyle,
+    defaults: params,
     letters: {
       ...demoStyle.letters,
       ...customLetters,
     },
   };
 
-  const layoutResult = layoutText(text, activeStyle, activeStyle.defaults, `layout-${variationTick}-${text}`);
-  const connectorPaths = generateConnectors(layoutResult.letters, activeStyle.defaults.connectionSmoothness);
-  const fullPipeline = renderTextToSvg(text, activeStyle, {}, `pipeline-${variationTick}-${text}`);
+  const layoutResult = layoutText(text, activeStyle, params, `layout-${variationTick}-${text}`);
+  const connectorPaths = generateConnectors(layoutResult.letters, params.connectionSmoothness);
+  const fullPipeline = renderTextToSvg(text, activeStyle, params, `pipeline-${variationTick}-${text}`);
 
   const renderResult = latestExport
     ? renderSingleLetter(latestExport, {
-        roundness: 0.5,
-        slant: 8,
-        strokeColor: '#111111',
-        strokeWidth: 2,
+        roundness: params.roundness,
+        slant: params.slant,
+        strokeColor: params.strokeColor,
+        strokeWidth: params.strokeWidth,
         seed: `${latestExport.char}-${variationTick}`,
-        anchorJitter: 1.2,
-        baselineJitter: 0.8,
-        angleJitter: 1.5,
+        anchorJitter: params.anchorJitter,
+        baselineJitter: params.baselineJitter,
+        angleJitter: params.angleJitter,
       })
     : null;
 
   return (
     <div className="app">
-      <header className="app-header">
-        <h1>InkForge - Letter Editor</h1>
-        <div className="char-selector">
-          <label>Letter: </label>
-          <input
-            type="text"
-            maxLength={1}
-            value={char}
-            onChange={(e) => setChar(e.target.value)}
-            className="char-input"
-          />
-        </div>
-        <div className="text-selector">
-          <label>Text: </label>
-          <input
-            type="text"
-            value={text}
-            onChange={(e) => setText(e.target.value)}
-            className="text-input"
-          />
-        </div>
-      </header>
+      <TopBar char={char} text={text} onCharChange={setChar} onTextChange={setText} />
+
+      <ControlPanel params={params} onParamChange={handleParamChange} />
 
       <main className="app-main">
         <LetterEditor char={char} onExport={handleExport} />
@@ -97,8 +87,8 @@ function App() {
                 <path
                   d={renderResult.path}
                   fill="none"
-                  stroke="#111111"
-                  strokeWidth={2}
+                  stroke={params.strokeColor}
+                  strokeWidth={params.strokeWidth}
                   strokeLinecap="round"
                   strokeLinejoin="round"
                   transform={renderResult.transform}
@@ -110,52 +100,15 @@ function App() {
         </aside>
       )}
 
-      <section className="layout-preview">
-        <div className="layout-preview-header">
-          <h3>Layout Preview (Phase 5)</h3>
-          <button onClick={() => setVariationTick((v) => v + 1)}>Reflow Layout</button>
-        </div>
-        <svg viewBox={`0 0 ${layoutResult.width} ${layoutResult.height}`} width="100%" height="220" role="img" aria-label="Multi-letter layout preview">
-          <line x1="0" y1="90" x2={layoutResult.width} y2="90" stroke="#d7d7d7" strokeDasharray="4,4" />
-          {connectorPaths.map((connectorPath, index) => (
-            <path
-              key={`connector-${index}`}
-              d={connectorPath}
-              fill="none"
-              stroke="#4a4a4a"
-              strokeWidth={Math.max(1, activeStyle.defaults.strokeWidth - 0.3)}
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              opacity="0.8"
-            />
-          ))}
-          {layoutResult.letters.map((letter, index) => (
-            <path
-              key={`${letter.char}-${index}`}
-              d={catmullRomToPath(letter.anchors.map((anchor) => ({ x: anchor.x, y: anchor.y })), roundnessToTension(activeStyle.defaults.roundness))}
-              fill="none"
-              stroke="#111111"
-              strokeWidth={activeStyle.defaults.strokeWidth}
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            />
-          ))}
-        </svg>
-        {layoutResult.missingChars.length > 0 && (
-          <p className="missing-glyphs">
-            Missing letter definitions: {layoutResult.missingChars.join(', ')}
-          </p>
-        )}
-      </section>
-
-      <section className="pipeline-preview">
-        <h3>Full Pipeline SVG (Phase 7)</h3>
-        <div
-          className="pipeline-preview-svg"
-          style={{ aspectRatio: `${Math.max(fullPipeline.width, 1)} / ${Math.max(fullPipeline.height, 1)}` }}
-          dangerouslySetInnerHTML={{ __html: fullPipeline.svg }}
-        />
-      </section>
+      <PreviewCanvas
+        layoutResult={layoutResult}
+        connectorPaths={connectorPaths}
+        params={params}
+        fullPipelineSvg={fullPipeline.svg}
+        fullPipelineWidth={fullPipeline.width}
+        fullPipelineHeight={fullPipeline.height}
+        onReflow={() => setVariationTick((v) => v + 1)}
+      />
     </div>
   );
 }

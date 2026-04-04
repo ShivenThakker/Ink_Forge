@@ -10,6 +10,7 @@
 .app-header {
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
   gap: 2rem;
   margin-bottom: 1rem;
 }
@@ -63,6 +64,65 @@
 .app-main {
   display: flex;
   justify-content: center;
+}
+
+.control-panel {
+  width: min(980px, 100%);
+  margin-bottom: 1rem;
+  padding: 0.9rem;
+  background: #f4f4f4;
+  border: 1px solid #e0e0e0;
+  border-radius: 8px;
+  text-align: left;
+}
+
+.control-panel h3 {
+  margin: 0 0 0.7rem;
+  font-size: 1rem;
+  color: #333;
+}
+
+.control-panel section {
+  margin-bottom: 0.8rem;
+}
+
+.control-panel section:last-child {
+  margin-bottom: 0;
+}
+
+.control-panel h4 {
+  margin: 0 0 0.4rem;
+  font-size: 0.9rem;
+  color: #444;
+}
+
+.control-row {
+  display: grid;
+  grid-template-columns: 150px 1fr auto;
+  align-items: center;
+  gap: 0.5rem;
+  margin: 0.3rem 0;
+  font-size: 0.82rem;
+}
+
+.control-row strong {
+  min-width: 62px;
+  text-align: right;
+  font-size: 0.78rem;
+  color: #2f2f2f;
+}
+
+.control-row input[type='range'] {
+  width: 100%;
+}
+
+.control-color-row input[type='color'] {
+  width: 42px;
+  height: 26px;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  padding: 0;
+  background: #fff;
 }
 
 .exported-preview {
