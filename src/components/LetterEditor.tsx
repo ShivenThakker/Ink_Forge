@@ -138,13 +138,15 @@ export function LetterEditor({ char = 'a', sourceLetter, onExport }: LetterEdito
           </pattern>
         </defs>
         <rect width={SVG_SIZE} height={SVG_SIZE} fill="url(#grid)" className="grid-background" />
+        <rect x="0.5" y="0.5" width={SVG_SIZE - 1} height={SVG_SIZE - 1} className="grid-boundary" />
 
         {/* Baseline indicator */}
         <line
           x1="0" y1={SCALE * 70}
           x2={SVG_SIZE} y2={SCALE * 70}
-          stroke="#ccc"
-          strokeDasharray="5,5"
+          stroke="#9aa3b2"
+          strokeWidth="1.5"
+          strokeDasharray="6,4"
           className="grid-line"
         />
 
@@ -186,9 +188,9 @@ export function LetterEditor({ char = 'a', sourceLetter, onExport }: LetterEdito
       </svg>
 
       <div className="editor-legend">
-        <span className="legend-item entry">● Entry</span>
-        <span className="legend-item exit">● Exit</span>
-        <span className="legend-item normal">● Normal</span>
+        <span className="legend-item entry"><span className="legend-dot" />Entry</span>
+        <span className="legend-item exit"><span className="legend-dot" />Exit</span>
+        <span className="legend-item normal"><span className="legend-dot" />Normal</span>
       </div>
 
       <div className="editor-instructions">

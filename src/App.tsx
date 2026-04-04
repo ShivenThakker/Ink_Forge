@@ -47,7 +47,15 @@ function App() {
   };
 
   const layoutResult = layoutText(text, activeStyle, params, `layout-${variationTick}-${text}`);
-  const connectorPaths = generateConnectors(layoutResult.letters, params.connectionSmoothness);
+  const loopScale = Math.max(0.4, Math.min(1.8, params.loopSize));
+  const loopAdjustedLetters = layoutResult.letters.map((letter) => ({
+    ...letter,
+    anchors: letter.anchors.map((anchor) => ({
+      ...anchor,
+      y: letter.baselineY + (anchor.y - letter.baselineY) * loopScale,
+    })),
+  }));
+  const connectorPaths = generateConnectors(loopAdjustedLetters, params.connectionSmoothness);
   const fullPipeline = renderTextToSvg(text, activeStyle, params, `pipeline-${variationTick}-${text}`);
 
   const handleApplyPreset = (styleName: string) => {

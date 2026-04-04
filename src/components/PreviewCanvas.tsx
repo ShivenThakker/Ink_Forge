@@ -40,10 +40,9 @@ export function PreviewCanvas({
               d={connectorPath}
               fill="none"
               stroke={params.strokeColor}
-              strokeWidth={Math.max(1, params.strokeWidth - 0.3)}
+              strokeWidth={params.strokeWidth}
               strokeLinecap="round"
               strokeLinejoin="round"
-              opacity="0.8"
             />
           ))}
           {layoutResult.letters.map((letter, index) => (

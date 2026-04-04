@@ -29,12 +29,13 @@
 
 .editor-controls {
   display: flex;
-  gap: 0.5rem;
+  column-gap: 0.75rem;
 }
 
 .editor-controls button {
   appearance: none;
   -webkit-appearance: none;
+  margin: 0;
   padding: 0.5rem 1rem;
   border: 1px solid #ccc;
   border-radius: 4px;
@@ -43,6 +44,7 @@
   font-weight: 600;
   cursor: pointer;
   font-size: 0.875rem;
+  line-height: 1.1;
 }
 
 .editor-controls button:hover:not(:disabled) {
@@ -65,22 +67,55 @@
   pointer-events: fill;
 }
 
+.grid-boundary {
+  fill: none;
+  stroke: #9ca3af;
+  stroke-width: 1.5;
+  pointer-events: none;
+}
+
 .editor-legend {
   display: flex;
   gap: 1.5rem;
   font-size: 0.875rem;
+  color: #374151;
+}
+
+.legend-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.legend-dot {
+  width: 0.6rem;
+  height: 0.6rem;
+  border-radius: 999px;
+  display: inline-block;
 }
 
 .legend-item.entry {
-  color: #22c55e;
+  color: #374151;
+}
+
+.legend-item.entry .legend-dot {
+  background: #22c55e;
 }
 
 .legend-item.exit {
-  color: #ef4444;
+  color: #374151;
+}
+
+.legend-item.exit .legend-dot {
+  background: #ef4444;
 }
 
 .legend-item.normal {
-  color: #3b82f6;
+  color: #374151;
+}
+
+.legend-item.normal .legend-dot {
+  background: #3b82f6;
 }
 
 .editor-instructions {

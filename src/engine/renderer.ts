@@ -126,7 +126,15 @@ export function renderTextToSvg(
   };
 
   const layout = layoutText(text, style, params, `${seed}-layout`);
-  const connectorPaths = generateConnectors(layout.letters, params.connectionSmoothness);
+  const loopScale = Math.max(0.4, Math.min(1.8, params.loopSize));
+  const loopAdjustedLetters = layout.letters.map((letter) => ({
+    ...letter,
+    anchors: letter.anchors.map((anchor) => ({
+      ...anchor,
+      y: letter.baselineY + (anchor.y - letter.baselineY) * loopScale,
+    })),
+  }));
+  const connectorPaths = generateConnectors(loopAdjustedLetters, params.connectionSmoothness);
   const rng = createSeededRng(`${seed}-variation`);
 
   const letterPaths = layout.letters
@@ -138,7 +146,6 @@ export function renderTextToSvg(
         y: wobbleBaseline(point.y, params.baselineJitter * 0.2, rng),
       }));
 
-      const loopScale = Math.max(0.4, Math.min(1.8, params.loopSize));
       const loopAdjusted = jittered.map((point) => ({
         x: point.x,
         y: letter.baselineY + (point.y - letter.baselineY) * loopScale,
@@ -165,7 +172,7 @@ export function renderTextToSvg(
   const connectorMarkup = connectorPaths
     .map(
       (path) =>
-        `<path d="${path}" fill="none" stroke="${params.strokeColor}" stroke-width="${Math.max(1, params.strokeWidth - 0.25)}" stroke-linecap="round" stroke-linejoin="round" opacity="0.75"/>`,
+        `<path d="${path}" fill="none" stroke="${params.strokeColor}" stroke-width="${params.strokeWidth}" stroke-linecap="round" stroke-linejoin="round"/>`,
     )
     .join('');
 
