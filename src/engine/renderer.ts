@@ -118,9 +118,7 @@ export function renderTextToSvg(
 
   const letterPaths = layout.letters
     .map((letter, index) => {
-      if (shouldBreak(params.strokeBreakChance, rng)) {
-        return '';
-      }
+      const shouldLiftPen = shouldBreak(params.strokeBreakChance, rng);
 
       const jittered = jitterPoints(letter.anchors, params.anchorJitter, rng).map((point) => ({
         x: point.x,
@@ -133,7 +131,13 @@ export function renderTextToSvg(
       const pivotY = letter.baselineY;
       const transform = `rotate(${angle} ${pivotX} ${pivotY})`;
 
-      return `<path d="${path}" fill="none" stroke="${params.strokeColor}" stroke-width="${params.strokeWidth}" stroke-linecap="round" stroke-linejoin="round" transform="${transform}" data-index="${index}"/>`;
+      const breakLength = Math.max(0, Math.min(80, params.strokeBreakLength));
+      const dashLength = Math.max(0, 100 - breakLength);
+      const dashAttrs = shouldLiftPen
+        ? ` pathLength="100" stroke-dasharray="${dashLength} ${breakLength}" stroke-dashoffset="35"`
+        : '';
+
+      return `<path d="${path}" fill="none" stroke="${params.strokeColor}" stroke-width="${params.strokeWidth}" stroke-linecap="round" stroke-linejoin="round" transform="${transform}" data-index="${index}"${dashAttrs}/>`;
     })
     .join('');
 
