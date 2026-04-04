@@ -4,6 +4,7 @@ import type { HandwritingStyle, LetterDefinition } from './engine/types';
 import { renderSingleLetter } from './engine/renderer';
 import { layoutText } from './engine/layout';
 import { catmullRomToPath, roundnessToTension } from './engine/spline';
+import { generateConnectors } from './engine/connector';
 import { demoStyle } from './styles/demoStyle';
 import './App.css';
 
@@ -36,6 +37,7 @@ function App() {
   };
 
   const layoutResult = layoutText(text, activeStyle, activeStyle.defaults, `layout-${variationTick}-${text}`);
+  const connectorPaths = generateConnectors(layoutResult.letters, activeStyle.defaults.connectionSmoothness);
 
   const renderResult = latestExport
     ? renderSingleLetter(latestExport, {
@@ -114,6 +116,18 @@ function App() {
         </div>
         <svg viewBox={`0 0 ${layoutResult.width} ${layoutResult.height}`} width="100%" height="220" role="img" aria-label="Multi-letter layout preview">
           <line x1="0" y1="90" x2={layoutResult.width} y2="90" stroke="#d7d7d7" strokeDasharray="4,4" />
+          {connectorPaths.map((connectorPath, index) => (
+            <path
+              key={`connector-${index}`}
+              d={connectorPath}
+              fill="none"
+              stroke="#4a4a4a"
+              strokeWidth={Math.max(1, activeStyle.defaults.strokeWidth - 0.3)}
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              opacity="0.8"
+            />
+          ))}
           {layoutResult.letters.map((letter, index) => (
             <path
               key={`${letter.char}-${index}`}

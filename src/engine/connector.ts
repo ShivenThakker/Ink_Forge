@@ -1,0 +1,51 @@
+import type { Point, PositionedLetter } from './types';
+
+function findExit(anchors: PositionedLetter['anchors']): Point | null {
+  const explicit = anchors.find((anchor) => anchor.type === 'exit');
+  if (explicit) return { x: explicit.x, y: explicit.y };
+  if (anchors.length === 0) return null;
+  const last = anchors[anchors.length - 1];
+  return { x: last.x, y: last.y };
+}
+
+function findEntry(anchors: PositionedLetter['anchors']): Point | null {
+  const explicit = anchors.find((anchor) => anchor.type === 'entry');
+  if (explicit) return { x: explicit.x, y: explicit.y };
+  if (anchors.length === 0) return null;
+  const first = anchors[0];
+  return { x: first.x, y: first.y };
+}
+
+function clamp01(value: number): number {
+  return Math.max(0, Math.min(1, value));
+}
+
+export function createConnectorPath(exit: Point, entry: Point, connectionSmoothness: number): string {
+  const smoothness = clamp01(connectionSmoothness);
+  const dx = entry.x - exit.x;
+  const handle = Math.max(6, Math.abs(dx) * (0.25 + smoothness * 0.55));
+
+  const cp1x = exit.x + handle;
+  const cp1y = exit.y;
+  const cp2x = entry.x - handle;
+  const cp2y = entry.y;
+
+  return `M ${exit.x} ${exit.y} C ${cp1x} ${cp1y}, ${cp2x} ${cp2y}, ${entry.x} ${entry.y}`;
+}
+
+export function generateConnectors(letters: PositionedLetter[], connectionSmoothness: number): string[] {
+  const connectors: string[] = [];
+
+  for (let i = 0; i < letters.length - 1; i++) {
+    const current = letters[i];
+    const next = letters[i + 1];
+
+    const exit = findExit(current.anchors);
+    const entry = findEntry(next.anchors);
+
+    if (!exit || !entry) continue;
+    connectors.push(createConnectorPath(exit, entry, connectionSmoothness));
+  }
+
+  return connectors;
+}
