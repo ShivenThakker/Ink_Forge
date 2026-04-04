@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { LetterEditor } from './components/LetterEditor';
 import type { HandwritingStyle, LetterDefinition } from './engine/types';
-import { renderSingleLetter } from './engine/renderer';
+import { renderSingleLetter, renderTextToSvg } from './engine/renderer';
 import { layoutText } from './engine/layout';
 import { catmullRomToPath, roundnessToTension } from './engine/spline';
 import { generateConnectors } from './engine/connector';
@@ -38,6 +38,7 @@ function App() {
 
   const layoutResult = layoutText(text, activeStyle, activeStyle.defaults, `layout-${variationTick}-${text}`);
   const connectorPaths = generateConnectors(layoutResult.letters, activeStyle.defaults.connectionSmoothness);
+  const fullPipeline = renderTextToSvg(text, activeStyle, {}, `pipeline-${variationTick}-${text}`);
 
   const renderResult = latestExport
     ? renderSingleLetter(latestExport, {
@@ -145,6 +146,15 @@ function App() {
             Missing letter definitions: {layoutResult.missingChars.join(', ')}
           </p>
         )}
+      </section>
+
+      <section className="pipeline-preview">
+        <h3>Full Pipeline SVG (Phase 7)</h3>
+        <div
+          className="pipeline-preview-svg"
+          style={{ aspectRatio: `${Math.max(fullPipeline.width, 1)} / ${Math.max(fullPipeline.height, 1)}` }}
+          dangerouslySetInnerHTML={{ __html: fullPipeline.svg }}
+        />
       </section>
     </div>
   );

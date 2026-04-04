@@ -1,6 +1,8 @@
-import type { LetterDefinition, Point } from './types';
+import type { HandwritingStyle, LetterDefinition, Point, StyleParameters } from './types';
 import { catmullRomToPath, roundnessToTension } from './spline';
-import { createSeededRng, jitterAngle, jitterPoints, wobbleBaseline } from './variation';
+import { generateConnectors } from './connector';
+import { layoutText } from './layout';
+import { createSeededRng, jitterAngle, jitterPoints, shouldBreak, wobbleBaseline } from './variation';
 
 export interface SingleLetterRenderOptions {
   roundness?: number;
@@ -21,6 +23,12 @@ export interface SingleLetterRenderResult {
   width: number;
   height: number;
   svg: string;
+}
+
+export interface TextRenderResult {
+  svg: string;
+  width: number;
+  height: number;
 }
 
 function getBounds(points: Point[]): { minX: number; minY: number; maxX: number; maxY: number } {
@@ -90,5 +98,57 @@ export function renderSingleLetter(letter: LetterDefinition, options: SingleLett
     width,
     height,
     svg,
+  };
+}
+
+export function renderTextToSvg(
+  text: string,
+  style: HandwritingStyle,
+  paramsOverride: Partial<StyleParameters> = {},
+  seed: string | number = 'default-seed',
+): TextRenderResult {
+  const params: StyleParameters = {
+    ...style.defaults,
+    ...paramsOverride,
+  };
+
+  const layout = layoutText(text, style, params, `${seed}-layout`);
+  const connectorPaths = generateConnectors(layout.letters, params.connectionSmoothness);
+  const rng = createSeededRng(`${seed}-variation`);
+
+  const letterPaths = layout.letters
+    .map((letter, index) => {
+      if (shouldBreak(params.strokeBreakChance, rng)) {
+        return '';
+      }
+
+      const jittered = jitterPoints(letter.anchors, params.anchorJitter, rng).map((point) => ({
+        x: point.x,
+        y: wobbleBaseline(point.y, params.baselineJitter * 0.2, rng),
+      }));
+
+      const path = catmullRomToPath(jittered, roundnessToTension(params.roundness));
+      const angle = jitterAngle(0, params.angleJitter, rng);
+      const pivotX = letter.x + letter.width / 2;
+      const pivotY = letter.baselineY;
+      const transform = `rotate(${angle} ${pivotX} ${pivotY})`;
+
+      return `<path d="${path}" fill="none" stroke="${params.strokeColor}" stroke-width="${params.strokeWidth}" stroke-linecap="round" stroke-linejoin="round" transform="${transform}" data-index="${index}"/>`;
+    })
+    .join('');
+
+  const connectorMarkup = connectorPaths
+    .map(
+      (path) =>
+        `<path d="${path}" fill="none" stroke="${params.strokeColor}" stroke-width="${Math.max(1, params.strokeWidth - 0.25)}" stroke-linecap="round" stroke-linejoin="round" opacity="0.75"/>`,
+    )
+    .join('');
+
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${layout.width} ${layout.height}"><g transform="skewX(${params.slant})">${connectorMarkup}${letterPaths}</g></svg>`;
+
+  return {
+    svg,
+    width: layout.width,
+    height: layout.height,
   };
 }
