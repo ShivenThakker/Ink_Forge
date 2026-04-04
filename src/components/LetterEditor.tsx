@@ -1,5 +1,6 @@
 import { useState, useCallback, useRef } from 'react';
 import type { Anchor, LetterDefinition, Point } from '../engine/types';
+import { catmullRomToPath, roundnessToTension } from '../engine/spline';
 import './LetterEditor.css';
 
 const GRID_SIZE = 100;
@@ -138,7 +139,7 @@ export function LetterEditor({ char = 'a', onExport }: LetterEditorProps) {
         {/* Curve preview */}
         {anchors.length >= 2 && (
           <path
-            d={catmullRomPath(anchors)}
+            d={catmullRomToPath(anchors.map((a) => ({ x: a.x * SCALE, y: a.y * SCALE })), roundnessToTension(0.5))}
             fill="none"
             stroke="#333"
             strokeWidth="2"
@@ -184,30 +185,4 @@ export function LetterEditor({ char = 'a', onExport }: LetterEditorProps) {
       </div>
     </div>
   );
-}
-
-// Catmull-Rom spline interpolation
-function catmullRomPath(anchors: Anchor[]): string {
-  if (anchors.length < 2) return '';
-
-  const points = anchors.map(a => ({ x: a.x * SCALE, y: a.y * SCALE }));
-  const tension = 0.5;
-
-  let path = `M ${points[0].x} ${points[0].y}`;
-
-  for (let i = 0; i < points.length - 1; i++) {
-    const p0 = points[i === 0 ? i : i - 1];
-    const p1 = points[i];
-    const p2 = points[i + 1];
-    const p3 = points[i + 2 >= points.length ? i + 1 : i + 2];
-
-    const cp1x = p1.x + (p2.x - p0.x) / 6 * tension;
-    const cp1y = p1.y + (p2.y - p0.y) / 6 * tension;
-    const cp2x = p2.x - (p3.x - p1.x) / 6 * tension;
-    const cp2y = p2.y - (p3.y - p1.y) / 6 * tension;
-
-    path += ` C ${cp1x} ${cp1y}, ${cp2x} ${cp2y}, ${p2.x} ${p2.y}`;
-  }
-
-  return path;
 }
