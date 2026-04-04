@@ -1,5 +1,6 @@
 import type { LetterDefinition, Point } from './types';
 import { catmullRomToPath, roundnessToTension } from './spline';
+import { createSeededRng, jitterAngle, jitterPoints, wobbleBaseline } from './variation';
 
 export interface SingleLetterRenderOptions {
   roundness?: number;
@@ -7,6 +8,10 @@ export interface SingleLetterRenderOptions {
   strokeWidth?: number;
   strokeColor?: string;
   padding?: number;
+  seed?: string | number;
+  anchorJitter?: number;
+  baselineJitter?: number;
+  angleJitter?: number;
 }
 
 export interface SingleLetterRenderResult {
@@ -38,6 +43,10 @@ export function renderSingleLetter(letter: LetterDefinition, options: SingleLett
     strokeWidth = 2,
     strokeColor = '#111111',
     padding = 8,
+    seed = Date.now(),
+    anchorJitter = 0,
+    baselineJitter = 0,
+    angleJitter = 0,
   } = options;
 
   const sortedAnchors = [...letter.anchors];
@@ -53,18 +62,25 @@ export function renderSingleLetter(letter: LetterDefinition, options: SingleLett
   }
 
   const points = sortedAnchors.map((anchor) => ({ x: anchor.x, y: anchor.y }));
-  const { minX, minY, maxX, maxY } = getBounds(points);
+  const rng = createSeededRng(seed);
+  const jitteredPoints = jitterPoints(points, anchorJitter, rng).map((point) => ({
+    x: point.x,
+    y: wobbleBaseline(point.y, baselineJitter, rng),
+  }));
+
+  const effectiveAngle = jitterAngle(0, angleJitter, rng);
+  const { minX, minY, maxX, maxY } = getBounds(jitteredPoints);
 
   const width = Math.max(1, maxX - minX + padding * 2);
   const height = Math.max(1, maxY - minY + padding * 2);
-  const translatedPoints = points.map((point) => ({
+  const translatedPoints = jitteredPoints.map((point) => ({
     x: point.x - minX + padding,
     y: point.y - minY + padding,
   }));
 
   const path = catmullRomToPath(translatedPoints, roundnessToTension(roundness));
   const viewBox = `0 0 ${width} ${height}`;
-  const transform = `skewX(${slant})`;
+  const transform = `skewX(${slant}) rotate(${effectiveAngle} ${width / 2} ${height / 2})`;
   const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="${viewBox}"><path d="${path}" fill="none" stroke="${strokeColor}" stroke-width="${strokeWidth}" stroke-linecap="round" stroke-linejoin="round" transform="${transform}"/></svg>`;
 
   return {

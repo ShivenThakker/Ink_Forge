@@ -74,6 +74,32 @@
   color: #333;
 }
 
+.renderer-preview-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-bottom: 0.5rem;
+}
+
+.renderer-preview-header h4 {
+  margin: 0;
+}
+
+.renderer-preview-header button {
+  border: 1px solid #c8c8c8;
+  background: #f7f7f7;
+  color: #222;
+  border-radius: 4px;
+  padding: 0.3rem 0.55rem;
+  font-size: 0.75rem;
+  cursor: pointer;
+}
+
+.renderer-preview-header button:hover {
+  background: #ececec;
+}
+
 .renderer-preview svg {
   background: #fdfdfd;
   border: 1px dashed #d0d0d0;

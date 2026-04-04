@@ -7,6 +7,7 @@ import './App.css';
 function App() {
   const [char, setChar] = useState('a');
   const [exportedLetters, setExportedLetters] = useState<LetterDefinition[]>([]);
+  const [variationTick, setVariationTick] = useState(0);
 
   const handleExport = (definition: LetterDefinition) => {
     setExportedLetters(prev => [...prev, definition]);
@@ -20,6 +21,10 @@ function App() {
         slant: 8,
         strokeColor: '#111111',
         strokeWidth: 2,
+        seed: `${latestExport.char}-${variationTick}`,
+        anchorJitter: 1.2,
+        baselineJitter: 0.8,
+        angleJitter: 1.5,
       })
     : null;
 
@@ -48,7 +53,12 @@ function App() {
           <h3>Exported Letters ({exportedLetters.length})</h3>
           {renderResult && (
             <div className="renderer-preview">
-              <h4>Renderer Preview (Phase 3)</h4>
+              <div className="renderer-preview-header">
+                <h4>Renderer Preview (Phase 4 Variation)</h4>
+                <button onClick={() => setVariationTick((v) => v + 1)}>
+                  Re-render Variation
+                </button>
+              </div>
               <svg viewBox={renderResult.viewBox} width="260" height="180" role="img" aria-label="Rendered letter preview">
                 <path
                   d={renderResult.path}
