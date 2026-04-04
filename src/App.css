@@ -60,6 +60,26 @@
   font-size: 1rem;
 }
 
+.renderer-preview {
+  margin: 0.75rem 0 1rem;
+  padding: 0.75rem;
+  background: #ffffff;
+  border: 1px solid #dddddd;
+  border-radius: 6px;
+}
+
+.renderer-preview h4 {
+  margin: 0 0 0.5rem;
+  font-size: 0.9rem;
+  color: #333;
+}
+
+.renderer-preview svg {
+  background: #fdfdfd;
+  border: 1px dashed #d0d0d0;
+  border-radius: 4px;
+}
+
 .exported-preview pre {
   margin: 0;
   font-size: 0.75rem;
