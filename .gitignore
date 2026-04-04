@@ -22,3 +22,7 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# Project docs (not part of source)
+VectorHandwriting_Docs.pdf
+impplan_inkforge.txt

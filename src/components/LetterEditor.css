@@ -1,0 +1,89 @@
+.letter-editor {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1rem;
+  padding: 1rem;
+  background: #f8f8f8;
+  border-radius: 8px;
+  width: fit-content;
+}
+
+.editor-header {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  width: 100%;
+  justify-content: space-between;
+}
+
+.editor-header h3 {
+  margin: 0;
+  font-size: 1rem;
+}
+
+.editor-header strong {
+  font-family: monospace;
+  font-size: 1.2rem;
+}
+
+.editor-controls {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.editor-controls button {
+  padding: 0.5rem 1rem;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  background: white;
+  cursor: pointer;
+  font-size: 0.875rem;
+}
+
+.editor-controls button:hover:not(:disabled) {
+  background: #f0f0f0;
+}
+
+.editor-controls button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.editor-canvas {
+  border: 1px solid #ccc;
+  background: white;
+  cursor: crosshair;
+}
+
+.grid-background {
+  pointer-events: fill;
+}
+
+.editor-legend {
+  display: flex;
+  gap: 1.5rem;
+  font-size: 0.875rem;
+}
+
+.legend-item.entry {
+  color: #22c55e;
+}
+
+.legend-item.exit {
+  color: #ef4444;
+}
+
+.legend-item.normal {
+  color: #3b82f6;
+}
+
+.editor-instructions {
+  font-size: 0.75rem;
+  color: #666;
+  text-align: center;
+}
+
+.editor-instructions p {
+  margin: 0.25rem 0;
+}
