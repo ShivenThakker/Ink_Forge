@@ -1,0 +1,165 @@
+Here's the full implementation plan, in order. Do not skip steps.
+
+---
+
+## Phase 0 — Project setup
+```
+npm create vite@latest inkforge -- --template react-ts
+cd inkforge
+npm install
+npm run dev
+```
+Folder structure to create upfront:
+```
+src/
+ ├── engine/
+ │    ├── spline.ts
+ │    ├── variation.ts
+ │    ├── layout.ts
+ │    ├── connector.ts
+ │    └── renderer.ts
+ ├── styles/
+ │    └── smooth_cursive.json
+ ├── components/
+ │    ├── TopBar.tsx
+ │    ├── PreviewCanvas.tsx
+ │    ├── ControlPanel.tsx
+ │    └── LetterEditor.tsx
+ └── App.tsx
+```
+
+---
+
+## Phase 1 — Letter editor
+Build this first. Everything else depends on it.
+
+- Grid component with fixed 100×100 coordinate space
+- Click to place anchor points
+- Drag existing anchors to move them
+- Mark one point as `entry`, one as `exit`
+- Live Catmull-Rom curve preview as you drag
+- Export button → downloads JSON in the style schema format
+
+**Done when:** You can design the letter `a` visually and export a valid JSON file.
+
+---
+
+## Phase 2 — Catmull-Rom spline engine
+File: `engine/spline.ts`
+
+- Takes an array of `{x, y}` points + tension value
+- Returns an SVG path string
+- Tension should map to the `roundness` parameter (0 = angular, 1 = very smooth)
+
+**Done when:** You paste anchor points in and get a smooth SVG path out.
+
+---
+
+## Phase 3 — Single letter renderer
+File: `engine/renderer.ts`
+
+- Load one letter's JSON definition
+- Pass anchors through spline engine
+- Render as `<path>` inside an SVG
+- Apply `slant` as a skew transform
+
+**Done when:** The letter `a` renders correctly in the browser as an SVG path.
+
+---
+
+## Phase 4 — Variation engine
+File: `engine/variation.ts`
+
+- Seeded random number generator (so same seed = same output)
+- Functions for each randomness parameter:
+  - `jitterPoints(anchors, anchorJitter)` — shifts each point slightly
+  - `wobbleBaseline(y, baselineJitter)` — drifts the baseline
+  - `jitterSpacing(spacing, spacingJitter)` — varies letter gap
+  - `jitterAngle(angle, angleJitter)` — slight rotation
+  - `shouldBreak(strokeBreakChance)` — returns true/false for pen lift
+
+**Done when:** Same letter looks slightly different on every render but still readable.
+
+---
+
+## Phase 5 — Layout engine
+File: `engine/layout.ts`
+
+- Takes a string of text
+- Looks up each character in the active style JSON
+- Samples anchors based on `anchorCount`
+- Positions letters left to right on a baseline
+- Applies spacing + spacingJitter between letters
+- Returns positioned anchor sets ready for rendering
+
+**Done when:** "hello" renders as five separate letters on a baseline.
+
+---
+
+## Phase 6 — Connector engine
+File: `engine/connector.ts`
+
+- Takes the `exit` point of letter N and `entry` point of letter N+1
+- Generates a smooth connector curve between them
+- Connector smoothness controlled by `connectionSmoothness` parameter
+
+**Done when:** Letters flow into each other like actual cursive instead of sitting as isolated shapes.
+
+---
+
+## Phase 7 — Full pipeline
+Wire everything together in `engine/renderer.ts`:
+
+```
+text → layout engine → variation engine → spline engine → connector engine → SVG string
+```
+
+**Done when:** You type "hello world" and get a full handwritten SVG output with variation.
+
+---
+
+## Phase 8 — UI
+Build the interface using the mockup as reference:
+
+- `TopBar` — app name, style dropdown, preset buttons, randomise, export
+- `PreviewCanvas` — renders the SVG output, updates live
+- `ControlPanel` — all 13 parameter sliders grouped by Layout / Shape / Randomness / Stroke
+- Text input that triggers a re-render on change
+
+**Done when:** The UI matches the mockup and all sliders affect the output visually.
+
+---
+
+## Phase 9 — Style system
+- Load styles from JSON files in `src/styles/`
+- Style dropdown in top bar switches the active style
+- All 13 parameters have defaults in the JSON, sliders override them
+- Presets (neat, normal, messy, scrawl) are just parameter snapshots
+
+**Done when:** Switching styles in the dropdown visibly changes the handwriting character.
+
+---
+
+## Phase 10 — Export
+- "Export SVG" button serialises the current SVG to a `.svg` file download
+- Later: use `canvas` + `drawImage` to export PNG
+
+---
+
+## Letter build order
+Do these in phases, not all at once:
+
+**Phase A** (enough to test the full pipeline): `a e h n o t`
+
+**Phase B** (common, covers most words): `b c d i l r s`
+
+**Phase C** (finish lowercase): remaining 13 letters
+
+**Phase D** (later): uppercase, numbers, punctuation
+
+---
+
+## The one rule
+**Don't build Phase 2 without Phase 1 done.** The letter editor is what saves you from editing raw JSON coordinates. Every hour skipped on the editor costs you ten hours of pain later.
+
+Go build. Come back when Phase 1 is working and we'll write the spline engine together.
