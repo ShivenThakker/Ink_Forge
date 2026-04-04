@@ -1,11 +1,15 @@
 import { useState } from 'react';
 import { LetterEditor } from './components/LetterEditor';
-import type { LetterDefinition } from './engine/types';
+import type { HandwritingStyle, LetterDefinition } from './engine/types';
 import { renderSingleLetter } from './engine/renderer';
+import { layoutText } from './engine/layout';
+import { catmullRomToPath, roundnessToTension } from './engine/spline';
+import { demoStyle } from './styles/demoStyle';
 import './App.css';
 
 function App() {
   const [char, setChar] = useState('a');
+  const [text, setText] = useState('hello');
   const [exportedLetters, setExportedLetters] = useState<LetterDefinition[]>([]);
   const [variationTick, setVariationTick] = useState(0);
 
@@ -15,6 +19,24 @@ function App() {
   };
 
   const latestExport = exportedLetters[exportedLetters.length - 1];
+
+  const customLetters = exportedLetters.reduce<Record<string, LetterDefinition>>((acc, letter) => {
+    if (letter.char) {
+      acc[letter.char.toLowerCase()] = letter;
+    }
+    return acc;
+  }, {});
+
+  const activeStyle: HandwritingStyle = {
+    ...demoStyle,
+    letters: {
+      ...demoStyle.letters,
+      ...customLetters,
+    },
+  };
+
+  const layoutResult = layoutText(text, activeStyle, activeStyle.defaults, `layout-${variationTick}-${text}`);
+
   const renderResult = latestExport
     ? renderSingleLetter(latestExport, {
         roundness: 0.5,
@@ -40,6 +62,15 @@ function App() {
             value={char}
             onChange={(e) => setChar(e.target.value)}
             className="char-input"
+          />
+        </div>
+        <div className="text-selector">
+          <label>Text: </label>
+          <input
+            type="text"
+            value={text}
+            onChange={(e) => setText(e.target.value)}
+            className="text-input"
           />
         </div>
       </header>
@@ -75,6 +106,32 @@ function App() {
           <pre>{JSON.stringify(exportedLetters, null, 2)}</pre>
         </aside>
       )}
+
+      <section className="layout-preview">
+        <div className="layout-preview-header">
+          <h3>Layout Preview (Phase 5)</h3>
+          <button onClick={() => setVariationTick((v) => v + 1)}>Reflow Layout</button>
+        </div>
+        <svg viewBox={`0 0 ${layoutResult.width} ${layoutResult.height}`} width="100%" height="220" role="img" aria-label="Multi-letter layout preview">
+          <line x1="0" y1="90" x2={layoutResult.width} y2="90" stroke="#d7d7d7" strokeDasharray="4,4" />
+          {layoutResult.letters.map((letter, index) => (
+            <path
+              key={`${letter.char}-${index}`}
+              d={catmullRomToPath(letter.anchors.map((anchor) => ({ x: anchor.x, y: anchor.y })), roundnessToTension(activeStyle.defaults.roundness))}
+              fill="none"
+              stroke="#111111"
+              strokeWidth={activeStyle.defaults.strokeWidth}
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
+          ))}
+        </svg>
+        {layoutResult.missingChars.length > 0 && (
+          <p className="missing-glyphs">
+            Missing letter definitions: {layoutResult.missingChars.join(', ')}
+          </p>
+        )}
+      </section>
     </div>
   );
 }

@@ -15,6 +15,20 @@ export interface LetterDefinition {
   anchors: Anchor[];
 }
 
+export interface HandwritingStyle {
+  name: string;
+  letters: Record<string, LetterDefinition>;
+  defaults: StyleParameters;
+}
+
+export interface PositionedLetter {
+  char: string;
+  anchors: Anchor[];
+  x: number;
+  baselineY: number;
+  width: number;
+}
+
 export interface StyleParameters {
   // Layout
   anchorCount: number;
