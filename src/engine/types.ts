@@ -38,6 +38,8 @@ export interface StyleParameters {
   spacingJitter: number;
   // Shape
   roundness: number;
+  loopSize: number;
+  strokeCurvature: number;
   connectionSmoothness: number;
   // Randomness
   anchorJitter: number;
@@ -56,6 +58,8 @@ export const DEFAULT_PARAMS: StyleParameters = {
   baselineJitter: 2,
   spacingJitter: 5,
   roundness: 0.5,
+  loopSize: 1,
+  strokeCurvature: 0.6,
   connectionSmoothness: 0.5,
   anchorJitter: 2,
   angleJitter: 5,

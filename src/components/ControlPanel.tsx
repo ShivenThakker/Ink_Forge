@@ -50,6 +50,8 @@ export function ControlPanel({ params, onParamChange }: ControlPanelProps) {
 
   const shapeSliders: SliderSpec[] = [
     { key: 'roundness', label: 'Roundness', min: 0, max: 1, step: 0.01 },
+    { key: 'loopSize', label: 'Loop Size', min: 0.5, max: 1.6, step: 0.01 },
+    { key: 'strokeCurvature', label: 'Stroke Curvature', min: 0.2, max: 1.4, step: 0.01 },
     { key: 'connectionSmoothness', label: 'Connection Smoothness', min: 0, max: 1, step: 0.01 },
   ];
 

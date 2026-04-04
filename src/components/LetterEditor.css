@@ -33,10 +33,14 @@
 }
 
 .editor-controls button {
+  appearance: none;
+  -webkit-appearance: none;
   padding: 0.5rem 1rem;
   border: 1px solid #ccc;
   border-radius: 4px;
   background: white;
+  color: #1f2937;
+  font-weight: 600;
   cursor: pointer;
   font-size: 0.875rem;
 }
@@ -46,6 +50,7 @@
 }
 
 .editor-controls button:disabled {
+  color: #6b7280;
   opacity: 0.5;
   cursor: not-allowed;
 }

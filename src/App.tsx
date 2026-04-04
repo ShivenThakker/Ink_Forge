@@ -16,11 +16,18 @@ function App() {
   const [text, setText] = useState('hello');
   const [selectedStyle, setSelectedStyle] = useState('normal');
   const [params, setParams] = useState({ ...DEFAULT_PARAMS, ...STYLE_PRESETS.normal.defaults });
-  const [exportedLetters, setExportedLetters] = useState<LetterDefinition[]>([]);
+  const [customLetters, setCustomLetters] = useState<Record<string, LetterDefinition>>({});
   const [variationTick, setVariationTick] = useState(0);
 
   const handleExport = (definition: LetterDefinition) => {
-    setExportedLetters(prev => [...prev, definition]);
+    const normalizedChar = definition.char.toLowerCase();
+    setCustomLetters((prev) => ({
+      ...prev,
+      [normalizedChar]: {
+        ...definition,
+        char: normalizedChar,
+      },
+    }));
     console.log('Exported:', definition);
   };
 
@@ -28,15 +35,7 @@ function App() {
     setParams((prev) => ({ ...prev, [key]: value }));
   };
 
-  const latestExport = exportedLetters[exportedLetters.length - 1];
   const baseStyle = STYLE_PRESETS[selectedStyle] ?? STYLE_PRESETS.normal;
-
-  const customLetters = exportedLetters.reduce<Record<string, LetterDefinition>>((acc, letter) => {
-    if (letter.char) {
-      acc[letter.char.toLowerCase()] = letter;
-    }
-    return acc;
-  }, {});
 
   const activeStyle: HandwritingStyle = {
     ...baseStyle,
@@ -68,6 +67,11 @@ function App() {
     URL.revokeObjectURL(url);
   };
 
+  const editorChar = char.toLowerCase();
+  const editorSourceAnchors = activeStyle.letters[editorChar]?.anchors ?? [];
+  const editorSourceVersion = JSON.stringify(editorSourceAnchors);
+  const latestExport = customLetters[editorChar];
+
   const renderResult = latestExport
     ? renderSingleLetter(latestExport, {
         roundness: params.roundness,
@@ -95,15 +99,33 @@ function App() {
         onExportSvg={handleExportSvg}
       />
 
-      <ControlPanel params={params} onParamChange={handleParamChange} />
+      <section className="live-workspace">
+        <div className="workspace-output">
+          <PreviewCanvas
+            layoutResult={layoutResult}
+            connectorPaths={connectorPaths}
+            params={params}
+            fullPipelineSvg={fullPipeline.svg}
+            fullPipelineWidth={fullPipeline.width}
+            fullPipelineHeight={fullPipeline.height}
+            onReflow={() => setVariationTick((v) => v + 1)}
+          />
+        </div>
+        <ControlPanel params={params} onParamChange={handleParamChange} />
+      </section>
 
       <main className="app-main">
-        <LetterEditor char={char} onExport={handleExport} />
+        <LetterEditor
+          key={`${editorChar}:${editorSourceVersion}`}
+          char={char}
+          sourceLetter={activeStyle.letters[editorChar]}
+          onExport={handleExport}
+        />
       </main>
 
-      {exportedLetters.length > 0 && (
+      {Object.keys(customLetters).length > 0 && (
         <aside className="exported-preview">
-          <h3>Exported Letters ({exportedLetters.length})</h3>
+          <h3>Custom Letters ({Object.keys(customLetters).length})</h3>
           {renderResult && (
             <div className="renderer-preview">
               <div className="renderer-preview-header">
@@ -125,19 +147,9 @@ function App() {
               </svg>
             </div>
           )}
-          <pre>{JSON.stringify(exportedLetters, null, 2)}</pre>
+          <pre>{JSON.stringify(customLetters, null, 2)}</pre>
         </aside>
       )}
-
-      <PreviewCanvas
-        layoutResult={layoutResult}
-        connectorPaths={connectorPaths}
-        params={params}
-        fullPipelineSvg={fullPipeline.svg}
-        fullPipelineWidth={fullPipeline.width}
-        fullPipelineHeight={fullPipeline.height}
-        onReflow={() => setVariationTick((v) => v + 1)}
-      />
     </div>
   );
 }

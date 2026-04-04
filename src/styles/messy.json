@@ -7,6 +7,8 @@
     "baselineJitter": 2.2,
     "spacingJitter": 3.4,
     "roundness": 0.56,
+    "loopSize": 1.05,
+    "strokeCurvature": 0.72,
     "connectionSmoothness": 0.47,
     "anchorJitter": 1.6,
     "angleJitter": 2.8,

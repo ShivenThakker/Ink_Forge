@@ -6,6 +6,8 @@ import { createSeededRng, jitterAngle, jitterPoints, shouldBreak, wobbleBaseline
 
 export interface SingleLetterRenderOptions {
   roundness?: number;
+  loopSize?: number;
+  strokeCurvature?: number;
   slant?: number;
   strokeWidth?: number;
   strokeColor?: string;
@@ -47,6 +49,8 @@ function getBounds(points: Point[]): { minX: number; minY: number; maxX: number;
 export function renderSingleLetter(letter: LetterDefinition, options: SingleLetterRenderOptions = {}): SingleLetterRenderResult {
   const {
     roundness = 0.5,
+    loopSize = 1,
+    strokeCurvature = 0.6,
     slant = 0,
     strokeWidth = 2,
     strokeColor = '#111111',
@@ -86,7 +90,16 @@ export function renderSingleLetter(letter: LetterDefinition, options: SingleLett
     y: point.y - minY + padding,
   }));
 
-  const path = catmullRomToPath(translatedPoints, roundnessToTension(roundness));
+  const midY = height / 2;
+  const loopScale = Math.max(0.4, Math.min(1.8, loopSize));
+  const loopAdjustedPoints = translatedPoints.map((point) => ({
+    x: point.x,
+    y: midY + (point.y - midY) * loopScale,
+  }));
+
+  const curvatureFactor = Math.max(0.2, Math.min(1.6, strokeCurvature));
+  const effectiveRoundness = Math.max(0, Math.min(1, roundness * curvatureFactor));
+  const path = catmullRomToPath(loopAdjustedPoints, roundnessToTension(effectiveRoundness));
   const viewBox = `0 0 ${width} ${height}`;
   const transform = `skewX(${slant}) rotate(${effectiveAngle} ${width / 2} ${height / 2})`;
   const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="${viewBox}"><path d="${path}" fill="none" stroke="${strokeColor}" stroke-width="${strokeWidth}" stroke-linecap="round" stroke-linejoin="round" transform="${transform}"/></svg>`;
@@ -125,7 +138,15 @@ export function renderTextToSvg(
         y: wobbleBaseline(point.y, params.baselineJitter * 0.2, rng),
       }));
 
-      const path = catmullRomToPath(jittered, roundnessToTension(params.roundness));
+      const loopScale = Math.max(0.4, Math.min(1.8, params.loopSize));
+      const loopAdjusted = jittered.map((point) => ({
+        x: point.x,
+        y: letter.baselineY + (point.y - letter.baselineY) * loopScale,
+      }));
+
+      const curvatureFactor = Math.max(0.2, Math.min(1.6, params.strokeCurvature));
+      const effectiveRoundness = Math.max(0, Math.min(1, params.roundness * curvatureFactor));
+      const path = catmullRomToPath(loopAdjusted, roundnessToTension(effectiveRoundness));
       const angle = jitterAngle(0, params.angleJitter, rng);
       const pivotX = letter.x + letter.width / 2;
       const pivotY = letter.baselineY;

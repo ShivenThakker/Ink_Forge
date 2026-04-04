@@ -9,11 +9,12 @@ const SCALE = SVG_SIZE / GRID_SIZE;
 
 interface LetterEditorProps {
   char?: string;
+  sourceLetter?: LetterDefinition;
   onExport?: (definition: LetterDefinition) => void;
 }
 
-export function LetterEditor({ char = 'a', onExport }: LetterEditorProps) {
-  const [anchors, setAnchors] = useState<Anchor[]>([]);
+export function LetterEditor({ char = 'a', sourceLetter, onExport }: LetterEditorProps) {
+  const [anchors, setAnchors] = useState<Anchor[]>(() => (sourceLetter?.anchors ?? []).map((anchor) => ({ ...anchor })));
   const [draggedId, setDraggedId] = useState<string | null>(null);
   const svgRef = useRef<SVGSVGElement>(null);
 
@@ -32,7 +33,12 @@ export function LetterEditor({ char = 'a', onExport }: LetterEditorProps) {
 
   const handleSvgClick = useCallback((e: React.MouseEvent<SVGSVGElement>) => {
     if (draggedId) return; // Don't add while dragging
-    if (e.target !== svgRef.current && !(e.target as Element).classList.contains('grid-line')) return;
+    const target = e.target as Element;
+    const isCanvasSurface =
+      target === svgRef.current ||
+      target.classList.contains('grid-line') ||
+      target.classList.contains('grid-background');
+    if (!isCanvasSurface) return;
 
     const pos = screenToGrid(e.clientX, e.clientY);
 
@@ -99,11 +105,17 @@ export function LetterEditor({ char = 'a', onExport }: LetterEditorProps) {
       <div className="editor-header">
         <h3>Letter: <strong>{char}</strong></h3>
         <div className="editor-controls">
+          <button
+            onClick={() => setAnchors((sourceLetter?.anchors ?? []).map((anchor) => ({ ...anchor })))}
+            disabled={!sourceLetter || sourceLetter.anchors.length === 0}
+          >
+            Load Style
+          </button>
           <button onClick={clearAnchors} disabled={anchors.length === 0}>
             Clear
           </button>
           <button onClick={handleExport} disabled={anchors.length < 2}>
-            Export JSON
+            Save Letter
           </button>
         </div>
       </div>
@@ -180,7 +192,7 @@ export function LetterEditor({ char = 'a', onExport }: LetterEditorProps) {
       </div>
 
       <div className="editor-instructions">
-        <p>Click to add anchors. Drag to move. Click anchor to toggle type.</p>
+        <p>Click to add anchors. Drag to move. Click anchor to toggle type. Save writes this letter into the active custom set.</p>
         <p>First anchor = entry (green), last = exit (red). Grid: 100×100</p>
       </div>
     </div>

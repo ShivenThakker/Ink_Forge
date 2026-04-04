@@ -21,6 +21,10 @@ export function PreviewCanvas({
   fullPipelineHeight,
   onReflow,
 }: PreviewCanvasProps) {
+  const loopScale = Math.max(0.4, Math.min(1.8, params.loopSize));
+  const curvatureFactor = Math.max(0.2, Math.min(1.6, params.strokeCurvature));
+  const effectiveRoundness = Math.max(0, Math.min(1, params.roundness * curvatureFactor));
+
   return (
     <>
       <section className="layout-preview">
@@ -45,7 +49,13 @@ export function PreviewCanvas({
           {layoutResult.letters.map((letter, index) => (
             <path
               key={`${letter.char}-${index}`}
-              d={catmullRomToPath(letter.anchors.map((anchor) => ({ x: anchor.x, y: anchor.y })), roundnessToTension(params.roundness))}
+              d={catmullRomToPath(
+                letter.anchors.map((anchor) => ({
+                  x: anchor.x,
+                  y: letter.baselineY + (anchor.y - letter.baselineY) * loopScale,
+                })),
+                roundnessToTension(effectiveRoundness),
+              )}
               fill="none"
               stroke={params.strokeColor}
               strokeWidth={params.strokeWidth}
