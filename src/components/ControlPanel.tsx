@@ -41,7 +41,7 @@ function SliderRow({
 
 export function ControlPanel({ params, onParamChange }: ControlPanelProps) {
   const layoutSliders: SliderSpec[] = [
-    { key: 'anchorCount', label: 'Anchor Count', min: 2, max: 12, step: 1 },
+    { key: 'anchorCount', label: 'Anchor Count', min: 2, max: 50, step: 1 },
     { key: 'spacing', label: 'Spacing', min: 2, max: 40, step: 1 },
     { key: 'slant', label: 'Slant', min: -20, max: 20, step: 1 },
     { key: 'baselineJitter', label: 'Baseline Jitter', min: 0, max: 8, step: 0.1 },

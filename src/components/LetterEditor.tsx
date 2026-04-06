@@ -22,6 +22,27 @@ interface EditorStroke extends StrokeDefinition {
   id: string;
 }
 
+type ResizeCorner = 'nw' | 'ne' | 'sw' | 'se';
+
+interface ImportedImageOverlay {
+  url: string;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
+
+interface ImageResizeState {
+  corner: ResizeCorner;
+  start: Point;
+  initial: ImportedImageOverlay;
+}
+
+interface ImageMoveState {
+  start: Point;
+  initial: ImportedImageOverlay;
+}
+
 function createStrokeId() {
   return `stroke_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
 }
@@ -93,10 +114,10 @@ function rdp(points: Point[], epsilon: number): Point[] {
 }
 
 function mapAnchorCountToEpsilon(anchorCount: number): number {
-  const clampedCount = Math.max(2, Math.min(30, anchorCount));
-  const t = (clampedCount - 2) / 28;
+  const clampedCount = Math.max(2, Math.min(50, anchorCount));
+  const t = (clampedCount - 2) / 48;
   const maxEpsilon = 6;
-  const minEpsilon = 0.35;
+  const minEpsilon = 0.2;
   return maxEpsilon - t * (maxEpsilon - minEpsilon);
 }
 
@@ -106,6 +127,17 @@ function simplifyStrokePoints(points: Point[], anchorCount: number): Point[] {
   const simplified = rdp(points, epsilon);
   if (simplified.length >= 2) return simplified;
   return [points[0], points[points.length - 1]];
+}
+
+function getDefaultImportedImagePlacement(aspect: number): Pick<ImportedImageOverlay, 'x' | 'y' | 'width' | 'height'> {
+  const ascenderY = 10;
+  const descenderY = 90;
+  const verticalPadding = 4;
+  const height = descenderY - ascenderY - verticalPadding * 2;
+  const width = Math.max(8, height * Math.max(0.1, aspect));
+  const x = (GRID_SIZE - width) / 2;
+  const y = ascenderY + verticalPadding;
+  return { x, y, width, height };
 }
 
 export function LetterEditor({ char = 'a', sourceLetter, anchorCount = 8, onExport }: LetterEditorProps) {
@@ -118,9 +150,13 @@ export function LetterEditor({ char = 'a', sourceLetter, anchorCount = 8, onExpo
   const [toolMode, setToolMode] = useState<'anchor' | 'pencil'>('anchor');
   const [freehandStrokes, setFreehandStrokes] = useState<Point[][]>([]);
   const [isDrawingFreehand, setIsDrawingFreehand] = useState(false);
+  const [importedImage, setImportedImage] = useState<ImportedImageOverlay | null>(null);
+  const [imageResizeState, setImageResizeState] = useState<ImageResizeState | null>(null);
+  const [imageMoveState, setImageMoveState] = useState<ImageMoveState | null>(null);
   const [history, setHistory] = useState<EditorStroke[][]>([]);
   const svgRef = useRef<SVGSVGElement>(null);
   const canvasWrapRef = useRef<HTMLDivElement>(null);
+  const imageInputRef = useRef<HTMLInputElement>(null);
   const panStateRef = useRef<{ mouseX: number; mouseY: number; scrollLeft: number; scrollTop: number } | null>(null);
   const suppressNextCanvasClickRef = useRef(false);
 
@@ -151,6 +187,8 @@ export function LetterEditor({ char = 'a', sourceLetter, anchorCount = 8, onExpo
     setIsMiddleMoveActive(false);
     setFreehandStrokes([]);
     setIsDrawingFreehand(false);
+    setImportedImage(null);
+    setImageResizeState(null);
     setHistory([]);
   }, [sourceLetter]);
 
@@ -261,7 +299,8 @@ export function LetterEditor({ char = 'a', sourceLetter, anchorCount = 8, onExpo
     const isCanvasSurface =
       target === svgRef.current ||
       target.classList.contains('grid-line') ||
-      target.classList.contains('grid-background');
+      target.classList.contains('grid-background') ||
+      target.classList.contains('imported-image');
     if (!isCanvasSurface) return;
 
     if (selectedAnchorId) {
@@ -294,7 +333,8 @@ export function LetterEditor({ char = 'a', sourceLetter, anchorCount = 8, onExpo
     const isCanvasSurface =
       target === svgRef.current ||
       target.classList.contains('grid-line') ||
-      target.classList.contains('grid-background');
+      target.classList.contains('grid-background') ||
+      target.classList.contains('imported-image');
     if (!isCanvasSurface) return;
 
     const wrap = canvasWrapRef.current;
@@ -339,6 +379,13 @@ export function LetterEditor({ char = 'a', sourceLetter, anchorCount = 8, onExpo
   const handleContextMenu = useCallback((e: React.MouseEvent<SVGSVGElement>) => {
     e.preventDefault();
     if (toolMode !== 'anchor') return;
+    const target = e.target as Element;
+    const isCanvasSurface =
+      target === svgRef.current ||
+      target.classList.contains('grid-line') ||
+      target.classList.contains('grid-background') ||
+      target.classList.contains('imported-image');
+    if (!isCanvasSurface) return;
 
     const nextStrokeId = createStrokeId();
     commitStructuralChange((prev) => [...prev, { id: nextStrokeId, anchors: [] }]);
@@ -347,6 +394,74 @@ export function LetterEditor({ char = 'a', sourceLetter, anchorCount = 8, onExpo
   }, [commitStructuralChange, toolMode]);
 
   const handleMouseMove = useCallback((e: React.MouseEvent<SVGSVGElement>) => {
+    if (imageMoveState && importedImage) {
+      const current = screenToGrid(e.clientX, e.clientY);
+      const dx = current.x - imageMoveState.start.x;
+      const dy = current.y - imageMoveState.start.y;
+
+      const nextX = imageMoveState.initial.x + dx;
+      const nextY = imageMoveState.initial.y + dy;
+
+      setImportedImage({
+        ...importedImage,
+        x: nextX,
+        y: nextY,
+      });
+      return;
+    }
+
+    if (imageResizeState && importedImage) {
+      const current = screenToGrid(e.clientX, e.clientY);
+      const dx = current.x - imageResizeState.start.x;
+      const dy = current.y - imageResizeState.start.y;
+      const minSize = 4;
+
+      let nextX = imageResizeState.initial.x;
+      let nextY = imageResizeState.initial.y;
+      let nextW = imageResizeState.initial.width;
+      let nextH = imageResizeState.initial.height;
+
+      if (imageResizeState.corner === 'nw') {
+        nextX += dx;
+        nextY += dy;
+        nextW -= dx;
+        nextH -= dy;
+      } else if (imageResizeState.corner === 'ne') {
+        nextY += dy;
+        nextW += dx;
+        nextH -= dy;
+      } else if (imageResizeState.corner === 'sw') {
+        nextX += dx;
+        nextW -= dx;
+        nextH += dy;
+      } else {
+        nextW += dx;
+        nextH += dy;
+      }
+
+      if (nextW < minSize) {
+        if (imageResizeState.corner === 'nw' || imageResizeState.corner === 'sw') {
+          nextX -= minSize - nextW;
+        }
+        nextW = minSize;
+      }
+      if (nextH < minSize) {
+        if (imageResizeState.corner === 'nw' || imageResizeState.corner === 'ne') {
+          nextY -= minSize - nextH;
+        }
+        nextH = minSize;
+      }
+
+      setImportedImage({
+        ...importedImage,
+        x: nextX,
+        y: nextY,
+        width: nextW,
+        height: nextH,
+      });
+      return;
+    }
+
     if (isPanActive) return;
 
     if (toolMode === 'pencil') {
@@ -380,9 +495,11 @@ export function LetterEditor({ char = 'a', sourceLetter, anchorCount = 8, onExpo
       }));
       return changed ? next : prev;
     });
-  }, [isDrawingFreehand, isMiddleMoveActive, isPanActive, screenToGrid, selectedAnchorId, toolMode]);
+  }, [imageMoveState, imageResizeState, importedImage, isDrawingFreehand, isMiddleMoveActive, isPanActive, screenToGrid, selectedAnchorId, toolMode]);
 
   const handleMouseDown = useCallback((e: React.MouseEvent<SVGSVGElement>) => {
+    if (imageResizeState || imageMoveState) return;
+
     if (toolMode === 'pencil') {
       if (e.button !== 0) return;
       const pos = screenToGrid(e.clientX, e.clientY);
@@ -395,9 +512,19 @@ export function LetterEditor({ char = 'a', sourceLetter, anchorCount = 8, onExpo
     e.preventDefault();
     pushHistorySnapshot(strokes);
     setIsMiddleMoveActive(true);
-  }, [pushHistorySnapshot, screenToGrid, selectedAnchorId, strokes, toolMode]);
+  }, [imageMoveState, imageResizeState, pushHistorySnapshot, screenToGrid, selectedAnchorId, strokes, toolMode]);
 
   const handleMouseUp = useCallback((e: React.MouseEvent<SVGSVGElement>) => {
+    if (imageMoveState) {
+      setImageMoveState(null);
+      return;
+    }
+
+    if (imageResizeState) {
+      setImageResizeState(null);
+      return;
+    }
+
     if (toolMode === 'pencil') {
       if (e.button !== 0) return;
       setIsDrawingFreehand(false);
@@ -406,7 +533,81 @@ export function LetterEditor({ char = 'a', sourceLetter, anchorCount = 8, onExpo
 
     if (e.button !== 1) return;
     setIsMiddleMoveActive(false);
-  }, [toolMode]);
+  }, [imageMoveState, imageResizeState, toolMode]);
+
+  const handleImportImageButtonClick = useCallback(() => {
+    imageInputRef.current?.click();
+  }, []);
+
+  const handleImportImageFile = useCallback((event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+    if (!file.type.includes('png') && !file.type.includes('jpeg') && !file.type.includes('jpg')) {
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = () => {
+      const url = String(reader.result ?? '');
+      if (!url) return;
+
+      const img = new Image();
+      img.onload = () => {
+        const aspect = img.width > 0 && img.height > 0 ? img.width / img.height : 1;
+        const placement = getDefaultImportedImagePlacement(aspect);
+
+        setImportedImage({
+          url,
+          x: placement.x,
+          y: placement.y,
+          width: placement.width,
+          height: placement.height,
+        });
+      };
+      img.src = url;
+    };
+
+    reader.readAsDataURL(file);
+    event.target.value = '';
+  }, []);
+
+  const handleResizeHandleMouseDown = useCallback((e: React.MouseEvent<SVGRectElement>, corner: ResizeCorner) => {
+    if (!importedImage) return;
+    e.preventDefault();
+    e.stopPropagation();
+    const start = screenToGrid(e.clientX, e.clientY);
+    setImageResizeState({
+      corner,
+      start,
+      initial: importedImage,
+    });
+  }, [importedImage, screenToGrid]);
+
+  const handleImageMouseDown = useCallback((e: React.MouseEvent<SVGImageElement>) => {
+    if (!importedImage) return;
+    e.preventDefault();
+    e.stopPropagation();
+    const start = screenToGrid(e.clientX, e.clientY);
+    setImageMoveState({
+      start,
+      initial: importedImage,
+    });
+  }, [importedImage, screenToGrid]);
+
+  const handleRecenterImage = useCallback(() => {
+    setImportedImage((prev) => {
+      if (!prev) return prev;
+      const aspect = prev.width > 0 && prev.height > 0 ? prev.width / prev.height : 1;
+      const placement = getDefaultImportedImagePlacement(aspect);
+      return {
+        ...prev,
+        x: placement.x,
+        y: placement.y,
+        width: placement.width,
+        height: placement.height,
+      };
+    });
+  }, []);
 
   const handleAnchorClick = useCallback((e: React.MouseEvent, id: string, strokeId: string) => {
     if (toolMode !== 'anchor') return;
@@ -550,6 +751,15 @@ export function LetterEditor({ char = 'a', sourceLetter, anchorCount = 8, onExpo
           <button onClick={generateAnchorsFromDrawing} disabled={freehandStrokes.length === 0}>
             Generate Anchors
           </button>
+          <button onClick={handleImportImageButtonClick}>
+            Import Image
+          </button>
+          <button onClick={handleRecenterImage} disabled={!importedImage}>
+            Recenter Image
+          </button>
+          <button onClick={() => setImportedImage(null)} disabled={!importedImage}>
+            Remove Image
+          </button>
           <button onClick={clearDrawing} disabled={freehandStrokes.length === 0}>
             Clear Drawing
           </button>
@@ -582,6 +792,14 @@ export function LetterEditor({ char = 'a', sourceLetter, anchorCount = 8, onExpo
           </button>
         </div>
       </div>
+
+      <input
+        ref={imageInputRef}
+        type="file"
+        accept="image/png,image/jpeg"
+        className="image-import-input"
+        onChange={handleImportImageFile}
+      />
 
       <div className="zoom-controls">
         <span>Zoom: {Math.round(zoom * 100)}%</span>
@@ -628,7 +846,31 @@ export function LetterEditor({ char = 'a', sourceLetter, anchorCount = 8, onExpo
           stopPan();
         }}
       >
-        {/* Layer 1: Ghost reference letter */}
+        {/* Layer 1: Background and grid */}
+        <defs>
+          <pattern id="grid" width={SCALE * 10} height={SCALE * 10} patternUnits="userSpaceOnUse">
+            <path d={`M ${SCALE * 10} 0 L 0 0 0 ${SCALE * 10}`} fill="none" stroke="#e0e0e0" strokeWidth="0.5" />
+          </pattern>
+        </defs>
+        <rect width={SVG_SIZE} height={SVG_SIZE} fill="white" className="grid-background" />
+        <rect width={SVG_SIZE} height={SVG_SIZE} fill="url(#grid)" className="grid-overlay" />
+
+        {/* Layer 2: Imported reference image */}
+        {importedImage && (
+          <image
+            href={importedImage.url}
+            x={importedImage.x * SCALE}
+            y={importedImage.y * SCALE}
+            width={importedImage.width * SCALE}
+            height={importedImage.height * SCALE}
+            preserveAspectRatio="none"
+            opacity="0.3"
+            className={`imported-image ${imageMoveState ? 'is-dragging' : ''}`}
+            onMouseDown={handleImageMouseDown}
+          />
+        )}
+
+        {/* Layer 3: Ghost reference letter */}
         {sourceGhostStrokes.map((stroke, index) => (
           <path
             key={`ghost-letter-${index}`}
@@ -643,7 +885,7 @@ export function LetterEditor({ char = 'a', sourceLetter, anchorCount = 8, onExpo
           />
         ))}
 
-        {/* Layer 1: Always-on vertical guides */}
+        {/* Layer 4: Always-visible reference lines and labels */}
         {guideLines.map((guide) => (
           <g key={`guide-${guide.label}`}>
             <line
@@ -652,42 +894,54 @@ export function LetterEditor({ char = 'a', sourceLetter, anchorCount = 8, onExpo
               x2={SVG_SIZE}
               y2={guide.y * SCALE}
               stroke="#9ca3af"
-              strokeWidth="1"
-              strokeDasharray="5,4"
-              opacity="0.55"
+              strokeWidth="1.2"
+              strokeDasharray="6,4"
+              opacity="0.9"
+              className="grid-line"
             />
             <text
               x="6"
               y={guide.y * SCALE - 4}
               fill="#6b7280"
               fontSize="10"
-              opacity="0.85"
+              opacity="0.95"
             >
               {guide.label}
             </text>
           </g>
         ))}
 
-        {/* Grid */}
-        <defs>
-          <pattern id="grid" width={SCALE * 10} height={SCALE * 10} patternUnits="userSpaceOnUse">
-            <path d={`M ${SCALE * 10} 0 L 0 0 0 ${SCALE * 10}`} fill="none" stroke="#e0e0e0" strokeWidth="0.5" />
-          </pattern>
-        </defs>
-        <rect width={SVG_SIZE} height={SVG_SIZE} fill="url(#grid)" className="grid-background" />
+        {importedImage && (
+          <>
+            <rect
+              x={importedImage.x * SCALE}
+              y={importedImage.y * SCALE}
+              width={importedImage.width * SCALE}
+              height={importedImage.height * SCALE}
+              className="imported-image-border"
+            />
+            {([
+              { corner: 'nw', x: importedImage.x, y: importedImage.y },
+              { corner: 'ne', x: importedImage.x + importedImage.width, y: importedImage.y },
+              { corner: 'sw', x: importedImage.x, y: importedImage.y + importedImage.height },
+              { corner: 'se', x: importedImage.x + importedImage.width, y: importedImage.y + importedImage.height },
+            ] as const).map((handle) => (
+              <rect
+                key={`handle-${handle.corner}`}
+                x={handle.x * SCALE - 5}
+                y={handle.y * SCALE - 5}
+                width={10}
+                height={10}
+                className="image-resize-handle"
+                onMouseDown={(e) => handleResizeHandleMouseDown(e, handle.corner)}
+              />
+            ))}
+          </>
+        )}
+
         <rect x="0.5" y="0.5" width={SVG_SIZE - 1} height={SVG_SIZE - 1} className="grid-boundary" />
 
-        {/* Baseline indicator */}
-        <line
-          x1="0" y1={SCALE * 70}
-          x2={SVG_SIZE} y2={SCALE * 70}
-          stroke="#9aa3b2"
-          strokeWidth="1.5"
-          strokeDasharray="6,4"
-          className="grid-line"
-        />
-
-        {/* Freehand ghost paths */}
+        {/* Layer 5: Freehand strokes */}
         {freehandStrokes.map((strokePoints, index) => {
           if (strokePoints.length < 2) return null;
           const d = strokePoints
@@ -707,7 +961,7 @@ export function LetterEditor({ char = 'a', sourceLetter, anchorCount = 8, onExpo
           );
         })}
 
-        {/* Stroke previews */}
+        {/* Layer 6: Stroke previews */}
         {strokes.map((stroke, strokeIndex) => {
           if (stroke.anchors.length < 2) return null;
           const isActive = stroke.id === selectedStrokeId;
@@ -725,7 +979,7 @@ export function LetterEditor({ char = 'a', sourceLetter, anchorCount = 8, onExpo
           );
         })}
 
-        {/* Anchor points */}
+        {/* Layer 7: Anchor points */}
         {strokes.map((stroke, strokeIndex) => {
           const isActive = stroke.id === selectedStrokeId;
           const baseColor = strokePalette[strokeIndex % strokePalette.length];
@@ -764,6 +1018,7 @@ export function LetterEditor({ char = 'a', sourceLetter, anchorCount = 8, onExpo
       <div className="editor-instructions">
         <p>Anchor Tool: left click empty space adds anchor, right click starts a new stroke segment.</p>
         <p>Pencil Tool: click and drag to draw. Use Generate Anchors to simplify drawing into anchors with RDP.</p>
+        <p>Import Image accepts PNG/JPG and overlays it as a reference layer. Resize with corner handles.</p>
         <p>Selected anchor moves only while middle mouse is held. Release to lock. Grid: 100×100</p>
       </div>
     </div>

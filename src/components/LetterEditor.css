@@ -119,6 +119,38 @@
   pointer-events: fill;
 }
 
+.grid-overlay {
+  pointer-events: none;
+}
+
+.imported-image {
+  pointer-events: fill;
+  cursor: grab;
+}
+
+.imported-image.is-dragging {
+  cursor: grabbing;
+}
+
+.imported-image-border {
+  fill: none;
+  stroke: #64748b;
+  stroke-width: 1.5;
+  stroke-dasharray: 4,3;
+  pointer-events: none;
+}
+
+.image-resize-handle {
+  fill: #1f2937;
+  stroke: #ffffff;
+  stroke-width: 1;
+  cursor: nwse-resize;
+}
+
+.image-import-input {
+  display: none;
+}
+
 .grid-boundary {
   fill: none;
   stroke: #9ca3af;
