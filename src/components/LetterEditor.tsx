@@ -1,6 +1,7 @@
-import { useState, useCallback, useRef } from 'react';
-import type { Anchor, LetterDefinition, Point } from '../engine/types';
+import { useState, useCallback, useEffect, useMemo, useRef } from 'react';
+import type { LetterDefinition, Point, StrokeDefinition } from '../engine/types';
 import { catmullRomToPath, roundnessToTension } from '../engine/spline';
+import { normalizeLetter } from '../engine/normalize';
 import './LetterEditor.css';
 
 const GRID_SIZE = 100;
@@ -10,15 +11,182 @@ const SCALE = SVG_SIZE / GRID_SIZE;
 interface LetterEditorProps {
   char?: string;
   sourceLetter?: LetterDefinition;
+  anchorCount?: number;
   onExport?: (definition: LetterDefinition) => void;
 }
 
-export function LetterEditor({ char = 'a', sourceLetter, onExport }: LetterEditorProps) {
-  const [anchors, setAnchors] = useState<Anchor[]>(() => (sourceLetter?.anchors ?? []).map((anchor) => ({ ...anchor })));
-  const [draggedId, setDraggedId] = useState<string | null>(null);
+interface EditorStroke extends StrokeDefinition {
+  id: string;
+}
+
+function createStrokeId() {
+  return `stroke_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
+}
+
+function cloneLetterStrokes(sourceLetter?: LetterDefinition): EditorStroke[] {
+  const sourceStrokes = sourceLetter?.strokes ?? [];
+  if (sourceStrokes.length === 0) return [{ id: createStrokeId(), anchors: [] }];
+
+  return sourceStrokes.map((stroke) => ({
+    id: createStrokeId(),
+    anchors: stroke.anchors.map((anchor) => ({ ...anchor })),
+  }));
+}
+
+function getEntryExit(strokes: EditorStroke[]): Pick<LetterDefinition, 'entry' | 'exit'> {
+  const nonEmpty = strokes.filter((stroke) => stroke.anchors.length > 0);
+  if (nonEmpty.length === 0) {
+    return { entry: undefined, exit: undefined };
+  }
+
+  const first = nonEmpty[0].anchors[0];
+  const lastStroke = nonEmpty[nonEmpty.length - 1];
+  const last = lastStroke.anchors[lastStroke.anchors.length - 1];
+  return {
+    entry: { x: first.x, y: first.y },
+    exit: { x: last.x, y: last.y },
+  };
+}
+
+function perpendicularDistance(point: Point, start: Point, end: Point): number {
+  const dx = end.x - start.x;
+  const dy = end.y - start.y;
+  if (dx === 0 && dy === 0) {
+    return Math.hypot(point.x - start.x, point.y - start.y);
+  }
+  const t = ((point.x - start.x) * dx + (point.y - start.y) * dy) / (dx * dx + dy * dy);
+  const projX = start.x + t * dx;
+  const projY = start.y + t * dy;
+  return Math.hypot(point.x - projX, point.y - projY);
+}
+
+function rdp(points: Point[], epsilon: number): Point[] {
+  if (points.length <= 2) return points;
+
+  let maxDistance = -1;
+  let index = -1;
+  const first = points[0];
+  const last = points[points.length - 1];
+
+  for (let i = 1; i < points.length - 1; i++) {
+    const distance = perpendicularDistance(points[i], first, last);
+    if (distance > maxDistance) {
+      maxDistance = distance;
+      index = i;
+    }
+  }
+
+  if (maxDistance > epsilon && index > 0) {
+    const left = rdp(points.slice(0, index + 1), epsilon);
+    const right = rdp(points.slice(index), epsilon);
+    return [...left.slice(0, -1), ...right];
+  }
+
+  return [first, last];
+}
+
+function mapAnchorCountToEpsilon(anchorCount: number): number {
+  const clampedCount = Math.max(2, Math.min(30, anchorCount));
+  const t = (clampedCount - 2) / 28;
+  const maxEpsilon = 6;
+  const minEpsilon = 0.35;
+  return maxEpsilon - t * (maxEpsilon - minEpsilon);
+}
+
+function simplifyStrokePoints(points: Point[], anchorCount: number): Point[] {
+  if (points.length <= 2) return points;
+  const epsilon = mapAnchorCountToEpsilon(anchorCount);
+  const simplified = rdp(points, epsilon);
+  if (simplified.length >= 2) return simplified;
+  return [points[0], points[points.length - 1]];
+}
+
+export function LetterEditor({ char = 'a', sourceLetter, anchorCount = 8, onExport }: LetterEditorProps) {
+  const [strokes, setStrokes] = useState<EditorStroke[]>(() => cloneLetterStrokes(sourceLetter));
+  const [selectedStrokeId, setSelectedStrokeId] = useState<string>(() => cloneLetterStrokes(sourceLetter)[0]?.id ?? createStrokeId());
+  const [selectedAnchorId, setSelectedAnchorId] = useState<string | null>(null);
+  const [isMiddleMoveActive, setIsMiddleMoveActive] = useState(false);
+  const [toolMode, setToolMode] = useState<'anchor' | 'pencil'>('anchor');
+  const [freehandStrokes, setFreehandStrokes] = useState<Point[][]>([]);
+  const [isDrawingFreehand, setIsDrawingFreehand] = useState(false);
+  const [history, setHistory] = useState<EditorStroke[][]>([]);
   const svgRef = useRef<SVGSVGElement>(null);
 
   const generateId = () => `anchor_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
+  const strokePalette = useMemo(() => ['#2563eb', '#16a34a', '#d97706', '#0891b2', '#dc2626', '#7c3aed'], []);
+
+  const cloneStrokes = useCallback((value: EditorStroke[]): EditorStroke[] => value.map((stroke) => ({
+    ...stroke,
+    anchors: stroke.anchors.map((anchor) => ({ ...anchor })),
+  })), []);
+
+  const pushHistorySnapshot = useCallback((snapshot: EditorStroke[]) => {
+    setHistory((prev) => [...prev, cloneStrokes(snapshot)].slice(-120));
+  }, [cloneStrokes]);
+
+  const commitStructuralChange = useCallback((updater: (prev: EditorStroke[]) => EditorStroke[]) => {
+    setStrokes((prev) => {
+      pushHistorySnapshot(prev);
+      return updater(prev);
+    });
+  }, [pushHistorySnapshot]);
+
+  useEffect(() => {
+    const next = cloneLetterStrokes(sourceLetter);
+    setStrokes(next);
+    setSelectedStrokeId(next[0]?.id ?? createStrokeId());
+    setSelectedAnchorId(null);
+    setIsMiddleMoveActive(false);
+    setFreehandStrokes([]);
+    setIsDrawingFreehand(false);
+    setHistory([]);
+  }, [sourceLetter]);
+
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== 'Delete') return;
+      const target = event.target as HTMLElement | null;
+      if (target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable)) {
+        return;
+      }
+
+      if (selectedAnchorId) {
+        commitStructuralChange((prev) =>
+          prev.map((stroke) => ({
+            ...stroke,
+            anchors: stroke.anchors.filter((anchor) => anchor.id !== selectedAnchorId),
+          })),
+        );
+        setSelectedAnchorId(null);
+        return;
+      }
+
+      if (!selectedStrokeId) return;
+      commitStructuralChange((prev) => {
+        if (prev.length <= 1) {
+          return [{ id: createStrokeId(), anchors: [] }];
+        }
+        const filtered = prev.filter((stroke) => stroke.id !== selectedStrokeId);
+        return filtered.length > 0 ? filtered : [{ id: createStrokeId(), anchors: [] }];
+      });
+    };
+
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [commitStructuralChange, selectedAnchorId, selectedStrokeId]);
+
+  useEffect(() => {
+    if (strokes.some((stroke) => stroke.id === selectedStrokeId)) return;
+    setSelectedStrokeId(strokes[0]?.id ?? createStrokeId());
+  }, [selectedStrokeId, strokes]);
+
+  useEffect(() => {
+    if (!selectedAnchorId) return;
+    const exists = strokes.some((stroke) => stroke.anchors.some((anchor) => anchor.id === selectedAnchorId));
+    if (!exists) {
+      setSelectedAnchorId(null);
+    }
+  }, [selectedAnchorId, strokes]);
 
   const screenToGrid = useCallback((clientX: number, clientY: number): Point => {
     if (!svgRef.current) return { x: 0, y: 0 };
@@ -32,7 +200,7 @@ export function LetterEditor({ char = 'a', sourceLetter, onExport }: LetterEdito
   }, []);
 
   const handleSvgClick = useCallback((e: React.MouseEvent<SVGSVGElement>) => {
-    if (draggedId) return; // Don't add while dragging
+    if (toolMode !== 'anchor') return;
     const target = e.target as Element;
     const isCanvasSurface =
       target === svgRef.current ||
@@ -40,56 +208,205 @@ export function LetterEditor({ char = 'a', sourceLetter, onExport }: LetterEdito
       target.classList.contains('grid-background');
     if (!isCanvasSurface) return;
 
+    if (selectedAnchorId) {
+      setSelectedAnchorId(null);
+      return;
+    }
+
     const pos = screenToGrid(e.clientX, e.clientY);
 
-    // First anchor is entry, last is exit, others are normal
-    const type: Anchor['type'] = anchors.length === 0 ? 'entry' : 'normal';
-
-    setAnchors(prev => {
-      const newAnchors = [...prev, { id: generateId(), ...pos, type }];
-      // Mark last as exit
-      if (newAnchors.length > 1) {
-        newAnchors[newAnchors.length - 1].type = 'exit';
-        if (newAnchors.length > 2) {
-          newAnchors[newAnchors.length - 2].type = 'normal';
-        }
+    commitStructuralChange((prev) => {
+      const targetStrokeId = selectedStrokeId || prev[0]?.id;
+      if (!targetStrokeId) {
+        return [{ id: createStrokeId(), anchors: [{ id: generateId(), ...pos, type: 'normal' }] }];
       }
-      return newAnchors;
-    });
-  }, [anchors, draggedId, screenToGrid]);
 
-  const handleMouseDown = useCallback((id: string) => {
-    setDraggedId(id);
-  }, []);
+      return prev.map((stroke) =>
+        stroke.id === targetStrokeId
+          ? {
+              ...stroke,
+              anchors: [...stroke.anchors, { id: generateId(), ...pos, type: 'normal' }],
+            }
+          : stroke,
+      );
+    });
+  }, [commitStructuralChange, screenToGrid, selectedAnchorId, selectedStrokeId, toolMode]);
+
+  const handleContextMenu = useCallback((e: React.MouseEvent<SVGSVGElement>) => {
+    e.preventDefault();
+    if (toolMode !== 'anchor') return;
+
+    const nextStrokeId = createStrokeId();
+    commitStructuralChange((prev) => [...prev, { id: nextStrokeId, anchors: [] }]);
+    setSelectedStrokeId(nextStrokeId);
+    setSelectedAnchorId(null);
+  }, [commitStructuralChange, toolMode]);
 
   const handleMouseMove = useCallback((e: React.MouseEvent<SVGSVGElement>) => {
-    if (!draggedId) return;
+    if (toolMode === 'pencil') {
+      if (!isDrawingFreehand) return;
+      const pos = screenToGrid(e.clientX, e.clientY);
+      setFreehandStrokes((prev) => {
+        if (prev.length === 0) return prev;
+        const next = [...prev];
+        const current = next[next.length - 1];
+        const last = current[current.length - 1];
+        if (!last || Math.hypot(last.x - pos.x, last.y - pos.y) >= 0.2) {
+          current.push(pos);
+        }
+        return next;
+      });
+      return;
+    }
+
+    if (!selectedAnchorId || !isMiddleMoveActive) return;
     const pos = screenToGrid(e.clientX, e.clientY);
-    setAnchors(prev => prev.map(a => (a.id === draggedId ? { ...a, ...pos } : a)));
-  }, [draggedId, screenToGrid]);
+    setStrokes((prev) => {
+      let changed = false;
+      const next = prev.map((stroke) => ({
+        ...stroke,
+        anchors: stroke.anchors.map((anchor) => {
+          if (anchor.id !== selectedAnchorId) return anchor;
+          if (anchor.x === pos.x && anchor.y === pos.y) return anchor;
+          changed = true;
+          return { ...anchor, ...pos };
+        }),
+      }));
+      return changed ? next : prev;
+    });
+  }, [isDrawingFreehand, isMiddleMoveActive, screenToGrid, selectedAnchorId, toolMode]);
 
-  const handleMouseUp = useCallback(() => {
-    setDraggedId(null);
-  }, []);
+  const handleMouseDown = useCallback((e: React.MouseEvent<SVGSVGElement>) => {
+    if (toolMode === 'pencil') {
+      if (e.button !== 0) return;
+      const pos = screenToGrid(e.clientX, e.clientY);
+      setFreehandStrokes((prev) => [...prev, [pos]]);
+      setIsDrawingFreehand(true);
+      return;
+    }
 
-  const handleAnchorClick = useCallback((e: React.MouseEvent, id: string) => {
+    if (e.button !== 1 || !selectedAnchorId) return;
+    e.preventDefault();
+    pushHistorySnapshot(strokes);
+    setIsMiddleMoveActive(true);
+  }, [pushHistorySnapshot, screenToGrid, selectedAnchorId, strokes, toolMode]);
+
+  const handleMouseUp = useCallback((e: React.MouseEvent<SVGSVGElement>) => {
+    if (toolMode === 'pencil') {
+      if (e.button !== 0) return;
+      setIsDrawingFreehand(false);
+      return;
+    }
+
+    if (e.button !== 1) return;
+    setIsMiddleMoveActive(false);
+  }, [toolMode]);
+
+  const handleAnchorClick = useCallback((e: React.MouseEvent, id: string, strokeId: string) => {
+    if (toolMode !== 'anchor') return;
     e.stopPropagation();
-    setAnchors(prev => prev.map(a => {
-      if (a.id !== id) return a;
-      // Cycle: normal -> entry -> exit -> normal
-      const nextType: Anchor['type'] = a.type === 'normal' ? 'entry' : a.type === 'entry' ? 'exit' : 'normal';
-      return { ...a, type: nextType };
-    }));
+    setSelectedStrokeId(strokeId);
+    if (selectedAnchorId === id) {
+      setSelectedAnchorId(null);
+      setIsMiddleMoveActive(false);
+      return;
+    }
+    setSelectedAnchorId(id);
+    setIsMiddleMoveActive(false);
+  }, [selectedAnchorId, toolMode]);
+
+  const handleStrokeSelect = useCallback((e: React.MouseEvent, strokeId: string) => {
+    if (toolMode !== 'anchor') return;
+    e.stopPropagation();
+    setSelectedStrokeId(strokeId);
+    setSelectedAnchorId(null);
+    setIsMiddleMoveActive(false);
+  }, [toolMode]);
+
+  const clearAnchors = useCallback(() => {
+    const id = createStrokeId();
+    commitStructuralChange(() => [{ id, anchors: [] }]);
+    setSelectedStrokeId(id);
+    setSelectedAnchorId(null);
+    setIsMiddleMoveActive(false);
+  }, [commitStructuralChange]);
+
+  const deleteSelectedAnchor = useCallback(() => {
+    if (!selectedAnchorId) return;
+    commitStructuralChange((prev) =>
+      prev.map((stroke) => ({
+        ...stroke,
+        anchors: stroke.anchors.filter((anchor) => anchor.id !== selectedAnchorId),
+      })),
+    );
+    setSelectedAnchorId(null);
+  }, [commitStructuralChange, selectedAnchorId]);
+
+  const generateAnchorsFromDrawing = useCallback(() => {
+    if (freehandStrokes.length === 0) return;
+
+    const nextStrokes = freehandStrokes
+      .map((strokePoints, strokeIndex) => {
+        const simplified = simplifyStrokePoints(strokePoints, anchorCount);
+        return {
+          id: createStrokeId(),
+          anchors: simplified.map((point, pointIndex) => ({
+            id: `anchor_auto_${strokeIndex}_${pointIndex}_${Math.random().toString(36).slice(2, 7)}`,
+            x: point.x,
+            y: point.y,
+            type: 'normal' as const,
+          })),
+        };
+      })
+      .filter((stroke) => stroke.anchors.length >= 2);
+
+    if (nextStrokes.length === 0) return;
+
+    pushHistorySnapshot(strokes);
+    setStrokes(nextStrokes);
+    setSelectedStrokeId(nextStrokes[0].id);
+    setSelectedAnchorId(null);
+    setToolMode('anchor');
+    setIsDrawingFreehand(false);
+  }, [anchorCount, freehandStrokes, pushHistorySnapshot, strokes]);
+
+  const clearDrawing = useCallback(() => {
+    setFreehandStrokes([]);
+    setIsDrawingFreehand(false);
   }, []);
 
-  const clearAnchors = () => setAnchors([]);
+  const undoLastChange = useCallback(() => {
+    setHistory((prevHistory) => {
+      if (prevHistory.length === 0) return prevHistory;
+      const snapshot = prevHistory[prevHistory.length - 1];
+      setStrokes(cloneStrokes(snapshot));
+      return prevHistory.slice(0, -1);
+    });
+    setSelectedAnchorId(null);
+    setIsMiddleMoveActive(false);
+  }, [cloneStrokes]);
+
+  const normalizedSourceLetter = sourceLetter ? normalizeLetter(sourceLetter) : undefined;
+  const sourceGhostStrokes = normalizedSourceLetter?.strokes?.filter((stroke) => stroke.anchors.length >= 2) ?? [];
+  const guideLines = [
+    { y: 10, label: 'Ascender' },
+    { y: 45, label: 'x-height' },
+    { y: 70, label: 'Baseline' },
+    { y: 90, label: 'Descender' },
+  ];
 
   const handleExport = () => {
-    const definition: LetterDefinition = { char, anchors };
+    const persistedStrokes = strokes
+      .filter((stroke) => stroke.anchors.length > 0)
+      .map((stroke) => ({
+        anchors: stroke.anchors.map((anchor) => ({ ...anchor })),
+      }));
+    const { entry, exit } = getEntryExit(strokes);
+    const normalized = normalizeLetter({ char, strokes: persistedStrokes, entry, exit });
     if (onExport) {
-      onExport(definition);
+      onExport(normalized);
     } else {
-      const json = JSON.stringify(definition, null, 2);
+      const json = JSON.stringify(normalized, null, 2);
       const blob = new Blob([json], { type: 'application/json' });
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
@@ -106,15 +423,55 @@ export function LetterEditor({ char = 'a', sourceLetter, onExport }: LetterEdito
         <h3>Letter: <strong>{char}</strong></h3>
         <div className="editor-controls">
           <button
-            onClick={() => setAnchors((sourceLetter?.anchors ?? []).map((anchor) => ({ ...anchor })))}
-            disabled={!sourceLetter || sourceLetter.anchors.length === 0}
+            onClick={() => {
+              setToolMode('anchor');
+              setIsDrawingFreehand(false);
+            }}
+            disabled={toolMode === 'anchor'}
+          >
+            Anchor Tool
+          </button>
+          <button
+            onClick={() => {
+              setToolMode('pencil');
+              setSelectedAnchorId(null);
+              setIsMiddleMoveActive(false);
+            }}
+            disabled={toolMode === 'pencil'}
+          >
+            Pencil Tool
+          </button>
+          <button onClick={generateAnchorsFromDrawing} disabled={freehandStrokes.length === 0}>
+            Generate Anchors
+          </button>
+          <button onClick={clearDrawing} disabled={freehandStrokes.length === 0}>
+            Clear Drawing
+          </button>
+          <button
+            onClick={() => {
+              const next = cloneLetterStrokes(sourceLetter);
+              setStrokes(next);
+              setSelectedStrokeId(next[0]?.id ?? createStrokeId());
+              setSelectedAnchorId(null);
+              setIsMiddleMoveActive(false);
+              setFreehandStrokes([]);
+              setIsDrawingFreehand(false);
+              setHistory([]);
+            }}
+            disabled={!sourceLetter || sourceLetter.strokes.length === 0}
           >
             Load Style
           </button>
-          <button onClick={clearAnchors} disabled={anchors.length === 0}>
+          <button onClick={undoLastChange} disabled={history.length === 0}>
+            Undo
+          </button>
+          <button onClick={deleteSelectedAnchor} disabled={!selectedAnchorId}>
+            Delete Anchor
+          </button>
+          <button onClick={clearAnchors} disabled={strokes.every((stroke) => stroke.anchors.length === 0)}>
             Clear
           </button>
-          <button onClick={handleExport} disabled={anchors.length < 2}>
+          <button onClick={handleExport} disabled={strokes.every((stroke) => stroke.anchors.length < 2)}>
             Save Letter
           </button>
         </div>
@@ -127,10 +484,55 @@ export function LetterEditor({ char = 'a', sourceLetter, onExport }: LetterEdito
         height={SVG_SIZE}
         viewBox={`0 0 ${SVG_SIZE} ${SVG_SIZE}`}
         onClick={handleSvgClick}
+        onContextMenu={handleContextMenu}
+        onMouseDown={handleMouseDown}
         onMouseMove={handleMouseMove}
         onMouseUp={handleMouseUp}
-        onMouseLeave={handleMouseUp}
+        onMouseLeave={() => {
+          setIsMiddleMoveActive(false);
+          setIsDrawingFreehand(false);
+        }}
       >
+        {/* Layer 1: Ghost reference letter */}
+        {sourceGhostStrokes.map((stroke, index) => (
+          <path
+            key={`ghost-letter-${index}`}
+            d={catmullRomToPath(
+              stroke.anchors.map((a) => ({ x: a.x * SCALE, y: a.y * SCALE })),
+              roundnessToTension(0.5),
+            )}
+            fill="none"
+            stroke="#4b5563"
+            strokeWidth="2"
+            opacity="0.15"
+          />
+        ))}
+
+        {/* Layer 1: Always-on vertical guides */}
+        {guideLines.map((guide) => (
+          <g key={`guide-${guide.label}`}>
+            <line
+              x1="0"
+              y1={guide.y * SCALE}
+              x2={SVG_SIZE}
+              y2={guide.y * SCALE}
+              stroke="#9ca3af"
+              strokeWidth="1"
+              strokeDasharray="5,4"
+              opacity="0.55"
+            />
+            <text
+              x="6"
+              y={guide.y * SCALE - 4}
+              fill="#6b7280"
+              fontSize="10"
+              opacity="0.85"
+            >
+              {guide.label}
+            </text>
+          </g>
+        ))}
+
         {/* Grid */}
         <defs>
           <pattern id="grid" width={SCALE * 10} height={SCALE * 10} patternUnits="userSpaceOnUse">
@@ -150,52 +552,83 @@ export function LetterEditor({ char = 'a', sourceLetter, onExport }: LetterEdito
           className="grid-line"
         />
 
-        {/* Curve preview */}
-        {anchors.length >= 2 && (
-          <path
-            d={catmullRomToPath(anchors.map((a) => ({ x: a.x * SCALE, y: a.y * SCALE })), roundnessToTension(0.5))}
-            fill="none"
-            stroke="#333"
-            strokeWidth="2"
-          />
-        )}
+        {/* Freehand ghost paths */}
+        {freehandStrokes.map((strokePoints, index) => {
+          if (strokePoints.length < 2) return null;
+          const d = strokePoints
+            .map((point, pointIndex) => `${pointIndex === 0 ? 'M' : 'L'} ${point.x * SCALE} ${point.y * SCALE}`)
+            .join(' ');
+          return (
+            <path
+              key={`freehand-${index}`}
+              d={d}
+              fill="none"
+              stroke="#6b7280"
+              strokeWidth="2"
+              opacity="0.38"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
+          );
+        })}
+
+        {/* Stroke previews */}
+        {strokes.map((stroke, strokeIndex) => {
+          if (stroke.anchors.length < 2) return null;
+          const isActive = stroke.id === selectedStrokeId;
+          const baseColor = strokePalette[strokeIndex % strokePalette.length];
+          return (
+            <path
+              key={`stroke-${stroke.id}`}
+              d={catmullRomToPath(stroke.anchors.map((a) => ({ x: a.x * SCALE, y: a.y * SCALE })), roundnessToTension(0.5))}
+              fill="none"
+              stroke={isActive ? '#111827' : baseColor}
+              strokeWidth={isActive ? 3 : 2}
+              style={{ cursor: 'pointer' }}
+              onClick={(e) => handleStrokeSelect(e, stroke.id)}
+            />
+          );
+        })}
 
         {/* Anchor points */}
-        {anchors.map((anchor, i) => (
-          <g key={anchor.id}>
-            <circle
-              cx={anchor.x * SCALE}
-              cy={anchor.y * SCALE}
-              r={8}
-              fill={anchor.type === 'entry' ? '#22c55e' : anchor.type === 'exit' ? '#ef4444' : '#3b82f6'}
-              stroke="white"
-              strokeWidth="2"
-              style={{ cursor: 'grab' }}
-              onMouseDown={() => handleMouseDown(anchor.id)}
-              onClick={(e) => handleAnchorClick(e, anchor.id)}
-            />
-            <text
-              x={anchor.x * SCALE}
-              y={anchor.y * SCALE - 15}
-              textAnchor="middle"
-              fontSize="10"
-              fill="#666"
-            >
-              {i + 1}
-            </text>
-          </g>
-        ))}
+        {strokes.map((stroke, strokeIndex) => {
+          const isActive = stroke.id === selectedStrokeId;
+          const baseColor = strokePalette[strokeIndex % strokePalette.length];
+          return stroke.anchors.map((anchor, anchorIndex) => (
+            <g key={anchor.id}>
+              <circle
+                cx={anchor.x * SCALE}
+                cy={anchor.y * SCALE}
+                r={isActive ? 7.5 : 6.5}
+                fill={isActive ? '#111827' : baseColor}
+                stroke={selectedAnchorId === anchor.id ? '#f59e0b' : 'white'}
+                strokeWidth={selectedAnchorId === anchor.id ? '3' : '2'}
+                style={{ cursor: 'grab' }}
+                onClick={(e) => handleAnchorClick(e, anchor.id, stroke.id)}
+              />
+              <text
+                x={anchor.x * SCALE}
+                y={anchor.y * SCALE - 15}
+                textAnchor="middle"
+                fontSize="10"
+                fill="#666"
+              >
+                {anchorIndex + 1}
+              </text>
+            </g>
+          ));
+        })}
       </svg>
 
       <div className="editor-legend">
-        <span className="legend-item entry"><span className="legend-dot" />Entry</span>
-        <span className="legend-item exit"><span className="legend-dot" />Exit</span>
-        <span className="legend-item normal"><span className="legend-dot" />Normal</span>
+        <span className="legend-item active"><span className="legend-dot" />Active stroke</span>
+        <span className="legend-item normal"><span className="legend-dot" />Inactive strokes</span>
       </div>
 
       <div className="editor-instructions">
-        <p>Click to add anchors. Drag to move. Click anchor to toggle type. Save writes this letter into the active custom set.</p>
-        <p>First anchor = entry (green), last = exit (red). Grid: 100×100</p>
+        <p>Anchor Tool: left click empty space adds anchor, right click starts a new stroke segment.</p>
+        <p>Pencil Tool: click and drag to draw. Use Generate Anchors to simplify drawing into anchors with RDP.</p>
+        <p>Selected anchor moves only while middle mouse is held. Release to lock. Grid: 100×100</p>
       </div>
     </div>
   );

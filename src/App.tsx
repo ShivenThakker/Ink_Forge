@@ -5,9 +5,7 @@ import { PreviewCanvas } from './components/PreviewCanvas';
 import { TopBar } from './components/TopBar';
 import type { HandwritingStyle, LetterDefinition } from './engine/types';
 import { DEFAULT_PARAMS } from './engine/types';
-import { renderSingleLetter, renderTextToSvg } from './engine/renderer';
-import { layoutText } from './engine/layout';
-import { generateConnectors } from './engine/connector';
+import { renderTextToSvg } from './engine/renderer';
 import { STYLE_NAMES, STYLE_PRESETS } from './styles';
 import './App.css';
 
@@ -17,7 +15,8 @@ function App() {
   const [selectedStyle, setSelectedStyle] = useState('normal');
   const [params, setParams] = useState({ ...DEFAULT_PARAMS, ...STYLE_PRESETS.normal.defaults });
   const [customLetters, setCustomLetters] = useState<Record<string, LetterDefinition>>({});
-  const [variationTick, setVariationTick] = useState(0);
+  const [pipelineVariationTick, setPipelineVariationTick] = useState(0);
+  const [lockedVariationTick, setLockedVariationTick] = useState(0);
 
   const handleExport = (definition: LetterDefinition) => {
     const normalizedChar = definition.char.toLowerCase();
@@ -33,6 +32,7 @@ function App() {
 
   const handleParamChange = <K extends keyof typeof params>(key: K, value: (typeof params)[K]) => {
     setParams((prev) => ({ ...prev, [key]: value }));
+    setPipelineVariationTick((v) => v + 1);
   };
 
   const baseStyle = STYLE_PRESETS[selectedStyle] ?? STYLE_PRESETS.normal;
@@ -46,23 +46,17 @@ function App() {
     },
   };
 
-  const layoutResult = layoutText(text, activeStyle, params, `layout-${variationTick}-${text}`);
-  const loopScale = Math.max(0.4, Math.min(1.8, params.loopSize));
-  const loopAdjustedLetters = layoutResult.letters.map((letter) => ({
-    ...letter,
-    anchors: letter.anchors.map((anchor) => ({
-      ...anchor,
-      y: letter.baselineY + (anchor.y - letter.baselineY) * loopScale,
-    })),
-  }));
-  const connectorPaths = generateConnectors(loopAdjustedLetters, params.connectionSmoothness);
-  const fullPipeline = renderTextToSvg(text, activeStyle, params, `pipeline-${variationTick}-${text}`);
+  const pipelineSeed = `pipeline-variation-${pipelineVariationTick}`;
+  const lockedSeed = `locked-variation-${lockedVariationTick}`;
+
+  const fullPipeline = renderTextToSvg(text, activeStyle, params, `${pipelineSeed}:${text}`);
 
   const handleApplyPreset = (styleName: string) => {
     const preset = STYLE_PRESETS[styleName];
     if (!preset) return;
     setSelectedStyle(styleName);
     setParams({ ...DEFAULT_PARAMS, ...preset.defaults });
+    setPipelineVariationTick((v) => v + 1);
   };
 
   const handleExportSvg = () => {
@@ -76,21 +70,12 @@ function App() {
   };
 
   const editorChar = char.toLowerCase();
-  const editorSourceAnchors = activeStyle.letters[editorChar]?.anchors ?? [];
-  const editorSourceVersion = JSON.stringify(editorSourceAnchors);
+  const editorSourceStrokes = activeStyle.letters[editorChar]?.strokes ?? [];
+  const editorSourceVersion = JSON.stringify(editorSourceStrokes);
   const latestExport = customLetters[editorChar];
 
-  const renderResult = latestExport
-    ? renderSingleLetter(latestExport, {
-        roundness: params.roundness,
-        slant: params.slant,
-        strokeColor: params.strokeColor,
-        strokeWidth: params.strokeWidth,
-        seed: `${latestExport.char}-${variationTick}`,
-        anchorJitter: params.anchorJitter,
-        baselineJitter: params.baselineJitter,
-        angleJitter: params.angleJitter,
-      })
+  const customPreview = latestExport
+    ? renderTextToSvg(latestExport.char, activeStyle, params, `${lockedSeed}:${latestExport.char}`)
     : null;
 
   return (
@@ -110,13 +95,11 @@ function App() {
       <section className="live-workspace">
         <div className="workspace-output">
           <PreviewCanvas
-            layoutResult={layoutResult}
-            connectorPaths={connectorPaths}
-            params={params}
+            renderKey={pipelineVariationTick}
             fullPipelineSvg={fullPipeline.svg}
             fullPipelineWidth={fullPipeline.width}
             fullPipelineHeight={fullPipeline.height}
-            onReflow={() => setVariationTick((v) => v + 1)}
+            onReflow={() => setPipelineVariationTick((v) => v + 1)}
           />
         </div>
         <ControlPanel params={params} onParamChange={handleParamChange} />
@@ -127,6 +110,7 @@ function App() {
           key={`${editorChar}:${editorSourceVersion}`}
           char={char}
           sourceLetter={activeStyle.letters[editorChar]}
+          anchorCount={params.anchorCount}
           onExport={handleExport}
         />
       </main>
@@ -134,25 +118,21 @@ function App() {
       {Object.keys(customLetters).length > 0 && (
         <aside className="exported-preview">
           <h3>Custom Letters ({Object.keys(customLetters).length})</h3>
-          {renderResult && (
+          {customPreview && (
             <div className="renderer-preview">
               <div className="renderer-preview-header">
                 <h4>Renderer Preview (Phase 4 Variation)</h4>
-                <button onClick={() => setVariationTick((v) => v + 1)}>
+                <button onClick={() => setLockedVariationTick((v) => v + 1)}>
                   Re-render Variation
                 </button>
               </div>
-              <svg viewBox={renderResult.viewBox} width="260" height="180" role="img" aria-label="Rendered letter preview">
-                <path
-                  d={renderResult.path}
-                  fill="none"
-                  stroke={params.strokeColor}
-                  strokeWidth={params.strokeWidth}
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  transform={renderResult.transform}
-                />
-              </svg>
+              <div
+                className="pipeline-preview-svg"
+                style={{ aspectRatio: `${Math.max(customPreview.width, 1)} / ${Math.max(customPreview.height, 1)}` }}
+                role="img"
+                aria-label="Rendered letter preview"
+                dangerouslySetInnerHTML={{ __html: customPreview.svg }}
+              />
             </div>
           )}
           <pre>{JSON.stringify(customLetters, null, 2)}</pre>

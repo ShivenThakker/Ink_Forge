@@ -94,20 +94,12 @@
   display: inline-block;
 }
 
-.legend-item.entry {
+.legend-item.active {
   color: #374151;
 }
 
-.legend-item.entry .legend-dot {
-  background: #22c55e;
-}
-
-.legend-item.exit {
-  color: #374151;
-}
-
-.legend-item.exit .legend-dot {
-  background: #ef4444;
+.legend-item.active .legend-dot {
+  background: #111827;
 }
 
 .legend-item.normal {
@@ -115,7 +107,7 @@
 }
 
 .legend-item.normal .legend-dot {
-  background: #3b82f6;
+  background: #2563eb;
 }
 
 .editor-instructions {

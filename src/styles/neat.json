@@ -81,7 +81,8 @@
           "y": 60.5,
           "type": "exit"
         }
-      ]
+      ],
+      "type": "xheight"
     },
     "b": {
       "char": "b",
@@ -146,7 +147,8 @@
           "y": 60.5,
           "type": "exit"
         }
-      ]
+      ],
+      "type": "ascender"
     },
     "c": {
       "char": "c",
@@ -211,7 +213,8 @@
           "y": 60.5,
           "type": "exit"
         }
-      ]
+      ],
+      "type": "xheight"
     },
     "d": {
       "char": "d",
@@ -276,7 +279,8 @@
           "y": 60.5,
           "type": "exit"
         }
-      ]
+      ],
+      "type": "ascender"
     },
     "e": {
       "char": "e",
@@ -341,7 +345,8 @@
           "y": 60.5,
           "type": "exit"
         }
-      ]
+      ],
+      "type": "xheight"
     },
     "f": {
       "char": "f",
@@ -406,7 +411,8 @@
           "y": 60.5,
           "type": "exit"
         }
-      ]
+      ],
+      "type": "ascender"
     },
     "g": {
       "char": "g",
@@ -471,7 +477,8 @@
           "y": 60.5,
           "type": "exit"
         }
-      ]
+      ],
+      "type": "descender"
     },
     "h": {
       "char": "h",
@@ -536,7 +543,8 @@
           "y": 60.5,
           "type": "exit"
         }
-      ]
+      ],
+      "type": "ascender"
     },
     "i": {
       "char": "i",
@@ -601,7 +609,8 @@
           "y": 60.5,
           "type": "exit"
         }
-      ]
+      ],
+      "type": "xheight"
     },
     "j": {
       "char": "j",
@@ -666,7 +675,8 @@
           "y": 60.5,
           "type": "exit"
         }
-      ]
+      ],
+      "type": "descender"
     },
     "k": {
       "char": "k",
@@ -731,7 +741,8 @@
           "y": 60.5,
           "type": "exit"
         }
-      ]
+      ],
+      "type": "ascender"
     },
     "l": {
       "char": "l",
@@ -796,7 +807,8 @@
           "y": 60.5,
           "type": "exit"
         }
-      ]
+      ],
+      "type": "ascender"
     },
     "m": {
       "char": "m",
@@ -861,7 +873,8 @@
           "y": 60.5,
           "type": "exit"
         }
-      ]
+      ],
+      "type": "xheight"
     },
     "n": {
       "char": "n",
@@ -926,7 +939,8 @@
           "y": 60.5,
           "type": "exit"
         }
-      ]
+      ],
+      "type": "xheight"
     },
     "o": {
       "char": "o",
@@ -991,7 +1005,8 @@
           "y": 60.5,
           "type": "exit"
         }
-      ]
+      ],
+      "type": "xheight"
     },
     "p": {
       "char": "p",
@@ -1056,7 +1071,8 @@
           "y": 60.5,
           "type": "exit"
         }
-      ]
+      ],
+      "type": "descender"
     },
     "q": {
       "char": "q",
@@ -1121,7 +1137,8 @@
           "y": 60.5,
           "type": "exit"
         }
-      ]
+      ],
+      "type": "descender"
     },
     "r": {
       "char": "r",
@@ -1186,7 +1203,8 @@
           "y": 60.5,
           "type": "exit"
         }
-      ]
+      ],
+      "type": "xheight"
     },
     "s": {
       "char": "s",
@@ -1251,7 +1269,8 @@
           "y": 60.5,
           "type": "exit"
         }
-      ]
+      ],
+      "type": "xheight"
     },
     "t": {
       "char": "t",
@@ -1298,7 +1317,8 @@
           "y": 60.5,
           "type": "exit"
         }
-      ]
+      ],
+      "type": "ascender"
     },
     "u": {
       "char": "u",
@@ -1363,7 +1383,8 @@
           "y": 60.5,
           "type": "exit"
         }
-      ]
+      ],
+      "type": "xheight"
     },
     "v": {
       "char": "v",
@@ -1428,7 +1449,8 @@
           "y": 60.5,
           "type": "exit"
         }
-      ]
+      ],
+      "type": "xheight"
     },
     "w": {
       "char": "w",
@@ -1493,7 +1515,8 @@
           "y": 60.5,
           "type": "exit"
         }
-      ]
+      ],
+      "type": "xheight"
     },
     "x": {
       "char": "x",
@@ -1558,7 +1581,8 @@
           "y": 68.1,
           "type": "exit"
         }
-      ]
+      ],
+      "type": "xheight"
     },
     "y": {
       "char": "y",
@@ -1623,7 +1647,8 @@
           "y": 60.5,
           "type": "exit"
         }
-      ]
+      ],
+      "type": "descender"
     },
     "z": {
       "char": "z",
@@ -1688,7 +1713,8 @@
           "y": 60.5,
           "type": "exit"
         }
-      ]
+      ],
+      "type": "xheight"
     }
   }
 }

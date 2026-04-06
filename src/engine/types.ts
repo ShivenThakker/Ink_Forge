@@ -10,9 +10,18 @@ export interface Anchor extends Point {
   type: 'normal' | 'entry' | 'exit';
 }
 
+export interface StrokeDefinition {
+  anchors: Anchor[];
+}
+
+export type LetterVerticalType = 'xheight' | 'ascender' | 'descender';
+
 export interface LetterDefinition {
   char: string;
-  anchors: Anchor[];
+  strokes: StrokeDefinition[];
+  type?: LetterVerticalType;
+  entry?: Point;
+  exit?: Point;
 }
 
 export interface HandwritingStyle {
@@ -23,7 +32,9 @@ export interface HandwritingStyle {
 
 export interface PositionedLetter {
   char: string;
-  anchors: Anchor[];
+  strokes: StrokeDefinition[];
+  entry: Point | null;
+  exit: Point | null;
   x: number;
   baselineY: number;
   width: number;
