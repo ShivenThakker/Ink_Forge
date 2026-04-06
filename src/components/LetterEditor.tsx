@@ -7,6 +7,9 @@ import './LetterEditor.css';
 const GRID_SIZE = 100;
 const SVG_SIZE = 500;
 const SCALE = SVG_SIZE / GRID_SIZE;
+const ZOOM_MIN = 0.5;
+const ZOOM_MAX = 3;
+const ZOOM_STEP = 0.1;
 
 interface LetterEditorProps {
   char?: string;
@@ -21,6 +24,10 @@ interface EditorStroke extends StrokeDefinition {
 
 function createStrokeId() {
   return `stroke_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
+}
+
+function createEmptyEditorStrokes(): EditorStroke[] {
+  return [{ id: createStrokeId(), anchors: [] }];
 }
 
 function cloneLetterStrokes(sourceLetter?: LetterDefinition): EditorStroke[] {
@@ -102,15 +109,20 @@ function simplifyStrokePoints(points: Point[], anchorCount: number): Point[] {
 }
 
 export function LetterEditor({ char = 'a', sourceLetter, anchorCount = 8, onExport }: LetterEditorProps) {
-  const [strokes, setStrokes] = useState<EditorStroke[]>(() => cloneLetterStrokes(sourceLetter));
-  const [selectedStrokeId, setSelectedStrokeId] = useState<string>(() => cloneLetterStrokes(sourceLetter)[0]?.id ?? createStrokeId());
+  const [strokes, setStrokes] = useState<EditorStroke[]>(() => createEmptyEditorStrokes());
+  const [selectedStrokeId, setSelectedStrokeId] = useState<string | null>(null);
   const [selectedAnchorId, setSelectedAnchorId] = useState<string | null>(null);
   const [isMiddleMoveActive, setIsMiddleMoveActive] = useState(false);
+  const [zoom, setZoom] = useState(1);
+  const [isPanActive, setIsPanActive] = useState(false);
   const [toolMode, setToolMode] = useState<'anchor' | 'pencil'>('anchor');
   const [freehandStrokes, setFreehandStrokes] = useState<Point[][]>([]);
   const [isDrawingFreehand, setIsDrawingFreehand] = useState(false);
   const [history, setHistory] = useState<EditorStroke[][]>([]);
   const svgRef = useRef<SVGSVGElement>(null);
+  const canvasWrapRef = useRef<HTMLDivElement>(null);
+  const panStateRef = useRef<{ mouseX: number; mouseY: number; scrollLeft: number; scrollTop: number } | null>(null);
+  const suppressNextCanvasClickRef = useRef(false);
 
   const generateId = () => `anchor_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
   const strokePalette = useMemo(() => ['#2563eb', '#16a34a', '#d97706', '#0891b2', '#dc2626', '#7c3aed'], []);
@@ -132,9 +144,9 @@ export function LetterEditor({ char = 'a', sourceLetter, anchorCount = 8, onExpo
   }, [pushHistorySnapshot]);
 
   useEffect(() => {
-    const next = cloneLetterStrokes(sourceLetter);
+    const next = createEmptyEditorStrokes();
     setStrokes(next);
-    setSelectedStrokeId(next[0]?.id ?? createStrokeId());
+    setSelectedStrokeId(next[0]?.id ?? null);
     setSelectedAnchorId(null);
     setIsMiddleMoveActive(false);
     setFreehandStrokes([]);
@@ -176,8 +188,8 @@ export function LetterEditor({ char = 'a', sourceLetter, anchorCount = 8, onExpo
   }, [commitStructuralChange, selectedAnchorId, selectedStrokeId]);
 
   useEffect(() => {
-    if (strokes.some((stroke) => stroke.id === selectedStrokeId)) return;
-    setSelectedStrokeId(strokes[0]?.id ?? createStrokeId());
+    if (selectedStrokeId && strokes.some((stroke) => stroke.id === selectedStrokeId)) return;
+    setSelectedStrokeId(strokes[0]?.id ?? null);
   }, [selectedStrokeId, strokes]);
 
   useEffect(() => {
@@ -191,15 +203,59 @@ export function LetterEditor({ char = 'a', sourceLetter, anchorCount = 8, onExpo
   const screenToGrid = useCallback((clientX: number, clientY: number): Point => {
     if (!svgRef.current) return { x: 0, y: 0 };
     const rect = svgRef.current.getBoundingClientRect();
-    const x = (clientX - rect.left) / SCALE;
-    const y = (clientY - rect.top) / SCALE;
+    const gridScaleX = rect.width / GRID_SIZE;
+    const gridScaleY = rect.height / GRID_SIZE;
+    const x = (clientX - rect.left) / gridScaleX;
+    const y = (clientY - rect.top) / gridScaleY;
     return {
       x: Math.max(0, Math.min(GRID_SIZE, Math.round(x * 10) / 10)),
       y: Math.max(0, Math.min(GRID_SIZE, Math.round(y * 10) / 10)),
     };
   }, []);
 
+  const handleWheelZoom = useCallback((event: React.WheelEvent<HTMLDivElement>) => {
+    event.preventDefault();
+    event.stopPropagation();
+
+    const wrap = canvasWrapRef.current;
+    if (!wrap) return;
+
+    const wrapRect = wrap.getBoundingClientRect();
+    const viewportX = event.clientX - wrapRect.left;
+    const viewportY = event.clientY - wrapRect.top;
+    const contentX = wrap.scrollLeft + viewportX;
+    const contentY = wrap.scrollTop + viewportY;
+
+    setZoom((prev) => {
+      const next = prev + (event.deltaY < 0 ? ZOOM_STEP : -ZOOM_STEP);
+      const clamped = Math.max(ZOOM_MIN, Math.min(ZOOM_MAX, next));
+      const rounded = Math.round(clamped * 10) / 10;
+
+      const worldX = contentX / prev;
+      const worldY = contentY / prev;
+
+      requestAnimationFrame(() => {
+        const currentWrap = canvasWrapRef.current;
+        if (!currentWrap) return;
+        if (rounded <= 1) {
+          currentWrap.scrollLeft = 0;
+          currentWrap.scrollTop = 0;
+          return;
+        }
+        currentWrap.scrollLeft = worldX * rounded - viewportX;
+        currentWrap.scrollTop = worldY * rounded - viewportY;
+      });
+
+      return rounded;
+    });
+  }, []);
+
   const handleSvgClick = useCallback((e: React.MouseEvent<SVGSVGElement>) => {
+    if (suppressNextCanvasClickRef.current) {
+      suppressNextCanvasClickRef.current = false;
+      return;
+    }
+
     if (toolMode !== 'anchor') return;
     const target = e.target as Element;
     const isCanvasSurface =
@@ -232,6 +288,54 @@ export function LetterEditor({ char = 'a', sourceLetter, anchorCount = 8, onExpo
     });
   }, [commitStructuralChange, screenToGrid, selectedAnchorId, selectedStrokeId, toolMode]);
 
+  const handlePanMouseDownCapture = useCallback((event: React.MouseEvent<HTMLDivElement>) => {
+    if (event.button !== 0 || zoom <= 1 || toolMode !== 'anchor') return;
+    const target = event.target as Element;
+    const isCanvasSurface =
+      target === svgRef.current ||
+      target.classList.contains('grid-line') ||
+      target.classList.contains('grid-background');
+    if (!isCanvasSurface) return;
+
+    const wrap = canvasWrapRef.current;
+    if (!wrap) return;
+
+    panStateRef.current = {
+      mouseX: event.clientX,
+      mouseY: event.clientY,
+      scrollLeft: wrap.scrollLeft,
+      scrollTop: wrap.scrollTop,
+    };
+    setIsPanActive(true);
+    suppressNextCanvasClickRef.current = false;
+    event.preventDefault();
+    event.stopPropagation();
+  }, [toolMode, zoom]);
+
+  const handlePanMouseMoveCapture = useCallback((event: React.MouseEvent<HTMLDivElement>) => {
+    if (!isPanActive) return;
+    const panState = panStateRef.current;
+    const wrap = canvasWrapRef.current;
+    if (!panState || !wrap) return;
+
+    const dx = event.clientX - panState.mouseX;
+    const dy = event.clientY - panState.mouseY;
+    wrap.scrollLeft = panState.scrollLeft - dx;
+    wrap.scrollTop = panState.scrollTop - dy;
+
+    if (Math.abs(dx) > 2 || Math.abs(dy) > 2) {
+      suppressNextCanvasClickRef.current = true;
+    }
+
+    event.preventDefault();
+    event.stopPropagation();
+  }, [isPanActive]);
+
+  const stopPan = useCallback(() => {
+    panStateRef.current = null;
+    setIsPanActive(false);
+  }, []);
+
   const handleContextMenu = useCallback((e: React.MouseEvent<SVGSVGElement>) => {
     e.preventDefault();
     if (toolMode !== 'anchor') return;
@@ -243,6 +347,8 @@ export function LetterEditor({ char = 'a', sourceLetter, anchorCount = 8, onExpo
   }, [commitStructuralChange, toolMode]);
 
   const handleMouseMove = useCallback((e: React.MouseEvent<SVGSVGElement>) => {
+    if (isPanActive) return;
+
     if (toolMode === 'pencil') {
       if (!isDrawingFreehand) return;
       const pos = screenToGrid(e.clientX, e.clientY);
@@ -274,7 +380,7 @@ export function LetterEditor({ char = 'a', sourceLetter, anchorCount = 8, onExpo
       }));
       return changed ? next : prev;
     });
-  }, [isDrawingFreehand, isMiddleMoveActive, screenToGrid, selectedAnchorId, toolMode]);
+  }, [isDrawingFreehand, isMiddleMoveActive, isPanActive, screenToGrid, selectedAnchorId, toolMode]);
 
   const handleMouseDown = useCallback((e: React.MouseEvent<SVGSVGElement>) => {
     if (toolMode === 'pencil') {
@@ -451,7 +557,7 @@ export function LetterEditor({ char = 'a', sourceLetter, anchorCount = 8, onExpo
             onClick={() => {
               const next = cloneLetterStrokes(sourceLetter);
               setStrokes(next);
-              setSelectedStrokeId(next[0]?.id ?? createStrokeId());
+              setSelectedStrokeId(next[0]?.id ?? null);
               setSelectedAnchorId(null);
               setIsMiddleMoveActive(false);
               setFreehandStrokes([]);
@@ -460,7 +566,7 @@ export function LetterEditor({ char = 'a', sourceLetter, anchorCount = 8, onExpo
             }}
             disabled={!sourceLetter || sourceLetter.strokes.length === 0}
           >
-            Load Style
+            Load Existing
           </button>
           <button onClick={undoLastChange} disabled={history.length === 0}>
             Undo
@@ -477,11 +583,39 @@ export function LetterEditor({ char = 'a', sourceLetter, anchorCount = 8, onExpo
         </div>
       </div>
 
+      <div className="zoom-controls">
+        <span>Zoom: {Math.round(zoom * 100)}%</span>
+        <button
+          onClick={() => {
+            setZoom(1);
+            const wrap = canvasWrapRef.current;
+            if (wrap) {
+              wrap.scrollLeft = 0;
+              wrap.scrollTop = 0;
+            }
+          }}
+          disabled={zoom === 1}
+        >
+          Reset Zoom
+        </button>
+      </div>
+
+      <div
+        ref={canvasWrapRef}
+        className={`editor-canvas-wrap ${zoom > 1 ? 'is-pannable' : ''} ${isPanActive ? 'is-panning' : ''}`}
+        style={{ overflow: 'hidden' }}
+        onMouseDownCapture={handlePanMouseDownCapture}
+        onMouseMoveCapture={handlePanMouseMoveCapture}
+        onMouseUpCapture={stopPan}
+        onMouseLeave={stopPan}
+        onWheel={handleWheelZoom}
+        onWheelCapture={handleWheelZoom}
+      >
       <svg
         ref={svgRef}
         className="editor-canvas"
-        width={SVG_SIZE}
-        height={SVG_SIZE}
+        width={SVG_SIZE * zoom}
+        height={SVG_SIZE * zoom}
         viewBox={`0 0 ${SVG_SIZE} ${SVG_SIZE}`}
         onClick={handleSvgClick}
         onContextMenu={handleContextMenu}
@@ -491,6 +625,7 @@ export function LetterEditor({ char = 'a', sourceLetter, anchorCount = 8, onExpo
         onMouseLeave={() => {
           setIsMiddleMoveActive(false);
           setIsDrawingFreehand(false);
+          stopPan();
         }}
       >
         {/* Layer 1: Ghost reference letter */}
@@ -619,6 +754,7 @@ export function LetterEditor({ char = 'a', sourceLetter, anchorCount = 8, onExpo
           ));
         })}
       </svg>
+      </div>
 
       <div className="editor-legend">
         <span className="legend-item active"><span className="legend-dot" />Active stroke</span>

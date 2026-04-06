@@ -63,6 +63,58 @@
   cursor: crosshair;
 }
 
+.editor-canvas-wrap {
+  width: 500px;
+  height: 500px;
+  overflow: auto;
+  border: 1px solid #ccc;
+  background: white;
+  overscroll-behavior: contain;
+}
+
+.editor-canvas-wrap.is-pannable {
+  cursor: grab;
+}
+
+.editor-canvas-wrap.is-panning {
+  cursor: grabbing;
+}
+
+.editor-canvas-wrap .editor-canvas {
+  border: 0;
+}
+
+.zoom-controls {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.5rem;
+  font-size: 0.8rem;
+  color: #4b5563;
+}
+
+.zoom-controls button {
+  appearance: none;
+  -webkit-appearance: none;
+  margin: 0;
+  padding: 0.35rem 0.7rem;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  background: white;
+  color: #1f2937;
+  font-weight: 600;
+  cursor: pointer;
+  font-size: 0.75rem;
+  line-height: 1.1;
+}
+
+.zoom-controls button:disabled {
+  color: #6b7280;
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
 .grid-background {
   pointer-events: fill;
 }
