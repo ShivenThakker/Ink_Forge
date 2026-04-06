@@ -63,6 +63,10 @@
   cursor: crosshair;
 }
 
+.editor-canvas.is-pencil-mode {
+  cursor: crosshair;
+}
+
 .editor-canvas-wrap {
   width: 500px;
   height: 500px;
@@ -132,6 +136,11 @@
   cursor: grabbing;
 }
 
+.imported-image.is-disabled {
+  pointer-events: none;
+  cursor: crosshair;
+}
+
 .imported-image-border {
   fill: none;
   stroke: #64748b;
@@ -145,6 +154,12 @@
   stroke: #ffffff;
   stroke-width: 1;
   cursor: nwse-resize;
+}
+
+.image-resize-handle.is-disabled {
+  pointer-events: none;
+  opacity: 0.35;
+  cursor: crosshair;
 }
 
 .image-import-input {
@@ -200,6 +215,38 @@
   text-align: center;
 }
 
+.help-toggle {
+  appearance: none;
+  -webkit-appearance: none;
+  margin: 0 0 0.35rem;
+  padding: 0.3rem 0.65rem;
+  border: 1px solid #cbd5e1;
+  border-radius: 999px;
+  background: #f8fafc;
+  color: #334155;
+  font-size: 0.72rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.help-toggle:hover {
+  background: #eef2f7;
+}
+
 .editor-instructions p {
   margin: 0.25rem 0;
+}
+
+.interaction-legend {
+  margin: 0.5rem 0 0;
+  padding: 0;
+  list-style: none;
+  text-align: left;
+  display: grid;
+  gap: 0.2rem;
+  max-width: 640px;
+}
+
+.interaction-legend li {
+  line-height: 1.35;
 }

@@ -148,6 +148,7 @@ export function LetterEditor({ char = 'a', sourceLetter, anchorCount = 8, onExpo
   const [zoom, setZoom] = useState(1);
   const [isPanActive, setIsPanActive] = useState(false);
   const [toolMode, setToolMode] = useState<'anchor' | 'pencil'>('anchor');
+  const [showHelp, setShowHelp] = useState(true);
   const [freehandStrokes, setFreehandStrokes] = useState<Point[][]>([]);
   const [isDrawingFreehand, setIsDrawingFreehand] = useState(false);
   const [importedImage, setImportedImage] = useState<ImportedImageOverlay | null>(null);
@@ -237,6 +238,12 @@ export function LetterEditor({ char = 'a', sourceLetter, anchorCount = 8, onExpo
       setSelectedAnchorId(null);
     }
   }, [selectedAnchorId, strokes]);
+
+  useEffect(() => {
+    if (toolMode !== 'pencil') return;
+    setImageMoveState(null);
+    setImageResizeState(null);
+  }, [toolMode]);
 
   const screenToGrid = useCallback((clientX: number, clientY: number): Point => {
     if (!svgRef.current) return { x: 0, y: 0 };
@@ -394,7 +401,7 @@ export function LetterEditor({ char = 'a', sourceLetter, anchorCount = 8, onExpo
   }, [commitStructuralChange, toolMode]);
 
   const handleMouseMove = useCallback((e: React.MouseEvent<SVGSVGElement>) => {
-    if (imageMoveState && importedImage) {
+    if (toolMode === 'anchor' && imageMoveState && importedImage) {
       const current = screenToGrid(e.clientX, e.clientY);
       const dx = current.x - imageMoveState.start.x;
       const dy = current.y - imageMoveState.start.y;
@@ -410,7 +417,7 @@ export function LetterEditor({ char = 'a', sourceLetter, anchorCount = 8, onExpo
       return;
     }
 
-    if (imageResizeState && importedImage) {
+    if (toolMode === 'anchor' && imageResizeState && importedImage) {
       const current = screenToGrid(e.clientX, e.clientY);
       const dx = current.x - imageResizeState.start.x;
       const dy = current.y - imageResizeState.start.y;
@@ -498,7 +505,7 @@ export function LetterEditor({ char = 'a', sourceLetter, anchorCount = 8, onExpo
   }, [imageMoveState, imageResizeState, importedImage, isDrawingFreehand, isMiddleMoveActive, isPanActive, screenToGrid, selectedAnchorId, toolMode]);
 
   const handleMouseDown = useCallback((e: React.MouseEvent<SVGSVGElement>) => {
-    if (imageResizeState || imageMoveState) return;
+    if (toolMode === 'anchor' && (imageResizeState || imageMoveState)) return;
 
     if (toolMode === 'pencil') {
       if (e.button !== 0) return;
@@ -515,12 +522,12 @@ export function LetterEditor({ char = 'a', sourceLetter, anchorCount = 8, onExpo
   }, [imageMoveState, imageResizeState, pushHistorySnapshot, screenToGrid, selectedAnchorId, strokes, toolMode]);
 
   const handleMouseUp = useCallback((e: React.MouseEvent<SVGSVGElement>) => {
-    if (imageMoveState) {
+    if (toolMode === 'anchor' && imageMoveState) {
       setImageMoveState(null);
       return;
     }
 
-    if (imageResizeState) {
+    if (toolMode === 'anchor' && imageResizeState) {
       setImageResizeState(null);
       return;
     }
@@ -572,6 +579,7 @@ export function LetterEditor({ char = 'a', sourceLetter, anchorCount = 8, onExpo
   }, []);
 
   const handleResizeHandleMouseDown = useCallback((e: React.MouseEvent<SVGRectElement>, corner: ResizeCorner) => {
+    if (toolMode !== 'anchor') return;
     if (!importedImage) return;
     e.preventDefault();
     e.stopPropagation();
@@ -581,9 +589,10 @@ export function LetterEditor({ char = 'a', sourceLetter, anchorCount = 8, onExpo
       start,
       initial: importedImage,
     });
-  }, [importedImage, screenToGrid]);
+  }, [importedImage, screenToGrid, toolMode]);
 
   const handleImageMouseDown = useCallback((e: React.MouseEvent<SVGImageElement>) => {
+    if (toolMode !== 'anchor') return;
     if (!importedImage) return;
     e.preventDefault();
     e.stopPropagation();
@@ -592,7 +601,7 @@ export function LetterEditor({ char = 'a', sourceLetter, anchorCount = 8, onExpo
       start,
       initial: importedImage,
     });
-  }, [importedImage, screenToGrid]);
+  }, [importedImage, screenToGrid, toolMode]);
 
   const handleRecenterImage = useCallback(() => {
     setImportedImage((prev) => {
@@ -831,7 +840,7 @@ export function LetterEditor({ char = 'a', sourceLetter, anchorCount = 8, onExpo
       >
       <svg
         ref={svgRef}
-        className="editor-canvas"
+        className={`editor-canvas ${toolMode === 'pencil' ? 'is-pencil-mode' : ''}`}
         width={SVG_SIZE * zoom}
         height={SVG_SIZE * zoom}
         viewBox={`0 0 ${SVG_SIZE} ${SVG_SIZE}`}
@@ -865,7 +874,7 @@ export function LetterEditor({ char = 'a', sourceLetter, anchorCount = 8, onExpo
             height={importedImage.height * SCALE}
             preserveAspectRatio="none"
             opacity="0.3"
-            className={`imported-image ${imageMoveState ? 'is-dragging' : ''}`}
+            className={`imported-image ${imageMoveState ? 'is-dragging' : ''} ${toolMode === 'pencil' ? 'is-disabled' : ''}`}
             onMouseDown={handleImageMouseDown}
           />
         )}
@@ -932,7 +941,7 @@ export function LetterEditor({ char = 'a', sourceLetter, anchorCount = 8, onExpo
                 y={handle.y * SCALE - 5}
                 width={10}
                 height={10}
-                className="image-resize-handle"
+                className={`image-resize-handle ${toolMode === 'pencil' ? 'is-disabled' : ''}`}
                 onMouseDown={(e) => handleResizeHandleMouseDown(e, handle.corner)}
               />
             ))}
@@ -1016,10 +1025,26 @@ export function LetterEditor({ char = 'a', sourceLetter, anchorCount = 8, onExpo
       </div>
 
       <div className="editor-instructions">
-        <p>Anchor Tool: left click empty space adds anchor, right click starts a new stroke segment.</p>
-        <p>Pencil Tool: click and drag to draw. Use Generate Anchors to simplify drawing into anchors with RDP.</p>
-        <p>Import Image accepts PNG/JPG and overlays it as a reference layer. Resize with corner handles.</p>
-        <p>Selected anchor moves only while middle mouse is held. Release to lock. Grid: 100×100</p>
+        <button className="help-toggle" onClick={() => setShowHelp((prev) => !prev)}>
+          {showHelp ? 'Hide Help' : 'Show Help'}
+        </button>
+        {showHelp && (
+          <>
+            <p>Grid: 100×100. Guides: Ascender (10), x-height (45), Baseline (70), Descender (90).</p>
+            <ul className="interaction-legend">
+              <li><strong>Add anchor:</strong> Anchor Tool + left click empty canvas.</li>
+              <li><strong>New stroke:</strong> Anchor Tool + right click empty canvas.</li>
+              <li><strong>Select anchor:</strong> Left click anchor. Click again to deselect.</li>
+              <li><strong>Move anchor:</strong> Hold middle mouse button while anchor is selected.</li>
+              <li><strong>Delete anchor:</strong> Select anchor then press Delete or click Delete Anchor.</li>
+              <li><strong>Draw freehand:</strong> Pencil Tool + left click drag.</li>
+              <li><strong>Auto anchors:</strong> Click Generate Anchors (RDP simplification).</li>
+              <li><strong>Zoom:</strong> Mouse wheel over canvas.</li>
+              <li><strong>Pan:</strong> At zoom &gt; 100%, left click drag on empty canvas.</li>
+              <li><strong>Image reference:</strong> Import Image, drag image to move, drag corner handles to resize, Recenter/Remove as needed.</li>
+            </ul>
+          </>
+        )}
       </div>
     </div>
   );
