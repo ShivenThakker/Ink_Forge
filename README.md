@@ -64,7 +64,7 @@ Each letter is stored as a sequence of anchor points in a normalized coordinate 
 ```bash
 # Clone the repository
 git clone https://github.com/ShivenThakker/Ink_Forge.git
-cd inkforge
+cd Ink_Forge
 
 # Install dependencies
 npm install
@@ -91,7 +91,7 @@ npm run preview
 ```powershell
 # Clone the repository
 git clone https://github.com/ShivenThakker/Ink_Forge.git
-cd inkforge
+cd Ink_Forge
 
 # Install dependencies
 npm install
