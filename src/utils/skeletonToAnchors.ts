@@ -2,6 +2,10 @@ import type { Anchor, LetterDefinition, Point, StrokeDefinition } from '../engin
 import { inferLetterType, normalizeLetter } from '../engine/normalize';
 import type { ExtractedLetterCell } from './cellExtraction';
 
+export interface SkeletonToAnchorsOptions {
+  reverseDirection?: boolean;
+}
+
 interface PixelPoint {
   x: number;
   y: number;
@@ -193,6 +197,16 @@ function toAnchors(points: Point[], char: string, strokeIndex: number): Anchor[]
   }));
 }
 
+function reverseStrokeAnchors(stroke: StrokeDefinition, char: string, strokeIndex: number): StrokeDefinition {
+  const reversedPoints = [...stroke.anchors]
+    .reverse()
+    .map((anchor) => ({ x: anchor.x, y: anchor.y }));
+
+  return {
+    anchors: toAnchors(reversedPoints, char, strokeIndex),
+  };
+}
+
 function pixelPathToPoints(path: PixelPoint[]): Point[] {
   return path.map((point) => ({ x: point.x, y: point.y }));
 }
@@ -214,6 +228,7 @@ function deriveEntryExit(strokes: StrokeDefinition[]): { entry?: Point; exit?: P
 export async function convertCellToLetterDefinition(
   cell: ExtractedLetterCell,
   anchorCount: number,
+  options: SkeletonToAnchorsOptions = {},
 ): Promise<LetterDefinition> {
   const imageData = await imageDataFromDataUrl(cell.skeletonDataUrl);
   const inkPixels = extractInkPixels(imageData);
@@ -229,8 +244,12 @@ export async function convertCellToLetterDefinition(
     })
     .filter((stroke) => stroke.anchors.length >= 2);
 
-  const fallbackStroke: StrokeDefinition[] = strokes.length > 0
-    ? strokes
+  const adjustedStrokes = options.reverseDirection
+    ? strokes.map((stroke, strokeIndex) => reverseStrokeAnchors(stroke, cell.letter, strokeIndex))
+    : strokes;
+
+  const fallbackStroke: StrokeDefinition[] = adjustedStrokes.length > 0
+    ? adjustedStrokes
     : [{ anchors: [] }];
 
   const entryExit = deriveEntryExit(fallbackStroke);

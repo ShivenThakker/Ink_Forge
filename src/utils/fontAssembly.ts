@@ -3,12 +3,19 @@ import { DEFAULT_PARAMS } from '../engine/types';
 import type { ExtractedLetterCell } from './cellExtraction';
 import { convertCellToLetterDefinition } from './skeletonToAnchors';
 
+export interface LetterImportOverride {
+  included: boolean;
+  reverseDirection: boolean;
+  anchorCount: number;
+}
+
 export interface BuildFontStyleOptions {
   name: string;
   key: string;
   source?: string;
   defaults?: Partial<StyleParameters>;
   anchorCount?: number;
+  overrides?: Record<string, LetterImportOverride>;
 }
 
 export interface BuiltFontStyle {
@@ -32,8 +39,21 @@ export async function buildFontStyleFromExtractedCells(
   const anchorCount = options.anchorCount ?? 14;
 
   for (const cell of cells) {
-    const letter = await convertCellToLetterDefinition(cell, anchorCount);
+    const override = options.overrides?.[cell.letter.toLowerCase()];
+    if (override && !override.included) {
+      continue;
+    }
+
+    const letter = await convertCellToLetterDefinition(
+      cell,
+      override?.anchorCount ?? anchorCount,
+      { reverseDirection: override?.reverseDirection ?? false },
+    );
     letters[cell.letter.toLowerCase()] = letter;
+  }
+
+  if (Object.keys(letters).length === 0) {
+    throw new Error('No letters selected for import.');
   }
 
   const style: HandwritingStyle = {

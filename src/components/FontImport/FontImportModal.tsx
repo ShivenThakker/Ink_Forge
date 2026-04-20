@@ -5,7 +5,7 @@ import { ReviewScreen } from './ReviewScreen';
 import { UploadZone } from './UploadZone';
 import { detectGridFromDataUrl, type OrderedCorners } from '../../utils/gridDetection';
 import { extractLetterCellsFromDataUrl, type ExtractedLetterCell } from '../../utils/cellExtraction';
-import { buildFontStyleFromExtractedCells } from '../../utils/fontAssembly';
+import { buildFontStyleFromExtractedCells, type LetterImportOverride } from '../../utils/fontAssembly';
 import './FontImport.css';
 
 type ImportStep = 'template' | 'upload' | 'detect' | 'extract' | 'review' | 'complete';
@@ -37,6 +37,7 @@ export const FontImportModal: React.FC<FontImportModalProps> = ({
   const [detectionStrategy, setDetectionStrategy] = useState('default');
   const [workingImage, setWorkingImage] = useState<string | null>(null);
   const [extractedLetters, setExtractedLetters] = useState<ExtractedLetterCell[]>([]);
+  const [reviewOverrides, setReviewOverrides] = useState<Record<string, LetterImportOverride>>({});
   const [fontName, setFontName] = useState('My Handwriting');
 
   const handleImageUpload = useCallback((_file: File, dataUrl: string) => {
@@ -48,6 +49,7 @@ export const FontImportModal: React.FC<FontImportModalProps> = ({
     setDetectionStrategy('default');
     setWorkingImage(null);
     setExtractedLetters([]);
+    setReviewOverrides({});
     setError(null);
     setStep('detect');
   }, []);
@@ -94,6 +96,15 @@ export const FontImportModal: React.FC<FontImportModalProps> = ({
       const extracted = await extractLetterCellsFromDataUrl(imageForExtraction, detectedCorners);
       setProgress(85);
       setExtractedLetters(extracted);
+      const nextOverrides: Record<string, LetterImportOverride> = {};
+      for (const cell of extracted) {
+        nextOverrides[cell.letter.toLowerCase()] = {
+          included: true,
+          reverseDirection: false,
+          anchorCount: 16,
+        };
+      }
+      setReviewOverrides(nextOverrides);
       setProgress(100);
 
       // Move to review step
@@ -120,6 +131,7 @@ export const FontImportModal: React.FC<FontImportModalProps> = ({
           key: fontName.trim() || 'my-handwriting',
           source: 'scan',
           anchorCount: 16,
+          overrides: reviewOverrides,
         });
 
         setProgress(100);
@@ -133,7 +145,49 @@ export const FontImportModal: React.FC<FontImportModalProps> = ({
     };
 
     void run();
-  }, [onImportComplete, extractedLetters, fontName]);
+  }, [onImportComplete, extractedLetters, fontName, reviewOverrides]);
+
+  const handleToggleInclude = useCallback((letter: string) => {
+    setReviewOverrides((prev) => {
+      const key = letter.toLowerCase();
+      const current = prev[key] ?? { included: true, reverseDirection: false, anchorCount: 16 };
+      return {
+        ...prev,
+        [key]: {
+          ...current,
+          included: !current.included,
+        },
+      };
+    });
+  }, []);
+
+  const handleToggleReverse = useCallback((letter: string) => {
+    setReviewOverrides((prev) => {
+      const key = letter.toLowerCase();
+      const current = prev[key] ?? { included: true, reverseDirection: false, anchorCount: 16 };
+      return {
+        ...prev,
+        [key]: {
+          ...current,
+          reverseDirection: !current.reverseDirection,
+        },
+      };
+    });
+  }, []);
+
+  const handleAnchorCountChange = useCallback((letter: string, anchorCount: number) => {
+    setReviewOverrides((prev) => {
+      const key = letter.toLowerCase();
+      const current = prev[key] ?? { included: true, reverseDirection: false, anchorCount: 16 };
+      return {
+        ...prev,
+        [key]: {
+          ...current,
+          anchorCount,
+        },
+      };
+    });
+  }, []);
 
   const handleBack = useCallback(() => {
     switch (step) {
@@ -167,6 +221,7 @@ export const FontImportModal: React.FC<FontImportModalProps> = ({
     setDetectionStrategy('default');
     setWorkingImage(null);
     setExtractedLetters([]);
+    setReviewOverrides({});
     setFontName('My Handwriting');
   }, []);
 
@@ -313,12 +368,22 @@ export const FontImportModal: React.FC<FontImportModalProps> = ({
                 placeholder="My Handwriting"
               />
             </div>
-            <ReviewScreen letters={extractedLetters} />
+            <ReviewScreen
+              letters={extractedLetters}
+              overrides={reviewOverrides}
+              onToggleInclude={handleToggleInclude}
+              onToggleReverse={handleToggleReverse}
+              onAnchorCountChange={handleAnchorCountChange}
+            />
             <div className="import-actions">
               <button className="btn btn-secondary" onClick={handleBack}>
                 ← Back
               </button>
-              <button className="btn btn-primary" onClick={handleAcceptAll}>
+              <button
+                className="btn btn-primary"
+                onClick={handleAcceptAll}
+                disabled={!Object.values(reviewOverrides).some((override) => override.included)}
+              >
                 Accept All & Import
               </button>
             </div>

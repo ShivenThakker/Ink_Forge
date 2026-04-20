@@ -286,6 +286,10 @@
   text-align: center;
 }
 
+.review-letter.excluded {
+  opacity: 0.55;
+}
+
 .review-letter-image-wrap {
   width: 100%;
   aspect-ratio: 1 / 1;
@@ -330,6 +334,27 @@
 .review-letter-confidence {
   font-size: 0.7rem;
   color: #999;
+}
+
+.review-letter-controls {
+  margin-top: 0.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  align-items: stretch;
+}
+
+.review-letter-controls label {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.4rem;
+  font-size: 0.72rem;
+  color: #495568;
+}
+
+.review-letter-controls input[type='range'] {
+  flex: 1;
 }
 
 /* Progress indicator */
