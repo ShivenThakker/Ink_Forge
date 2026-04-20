@@ -367,6 +367,25 @@
   border-top: 1px solid #eee;
 }
 
+.font-name-input-row {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  margin: 0.75rem 0 1rem;
+}
+
+.font-name-input-row label {
+  font-size: 0.85rem;
+  color: #4f5a68;
+}
+
+.font-name-input-row input {
+  border: 1px solid #cfd6df;
+  border-radius: 6px;
+  padding: 0.5rem 0.65rem;
+  font-size: 0.92rem;
+}
+
 /* Loading state */
 .import-loading {
   display: flex;

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { ControlPanel } from './components/ControlPanel';
 import { LetterEditor } from './components/LetterEditor';
 import { PreviewCanvas } from './components/PreviewCanvas';
@@ -10,15 +10,31 @@ import { renderTextToSvg } from './engine/renderer';
 import { STYLE_NAMES, STYLE_PRESETS } from './styles';
 import './App.css';
 
+interface ImportedFontPayload {
+  key: string;
+  style: HandwritingStyle;
+  source: string;
+}
+
 function App() {
   const [char, setChar] = useState('a');
   const [text, setText] = useState('hello');
   const [selectedStyle, setSelectedStyle] = useState('normal');
   const [params, setParams] = useState({ ...DEFAULT_PARAMS, ...STYLE_PRESETS.normal.defaults });
   const [customLetters, setCustomLetters] = useState<Record<string, LetterDefinition>>({});
+  const [importedStyles, setImportedStyles] = useState<Record<string, HandwritingStyle>>({});
   const [pipelineVariationTick, setPipelineVariationTick] = useState(0);
   const [lockedVariationTick, setLockedVariationTick] = useState(0);
   const [isFontImportOpen, setIsFontImportOpen] = useState(false);
+
+  const allStyles = useMemo(
+    () => ({ ...STYLE_PRESETS, ...importedStyles }),
+    [importedStyles],
+  );
+  const styleNames = useMemo(
+    () => Object.keys(allStyles),
+    [allStyles],
+  );
 
   const handleExport = (definition: LetterDefinition) => {
     const normalizedChar = definition.char.toLowerCase();
@@ -37,7 +53,7 @@ function App() {
     setPipelineVariationTick((v) => v + 1);
   };
 
-  const baseStyle = STYLE_PRESETS[selectedStyle] ?? STYLE_PRESETS.normal;
+  const baseStyle = allStyles[selectedStyle] ?? STYLE_PRESETS.normal;
 
   const activeStyle: HandwritingStyle = {
     ...baseStyle,
@@ -54,7 +70,7 @@ function App() {
   const fullPipeline = renderTextToSvg(text, activeStyle, params, `${pipelineSeed}:${text}`);
 
   const handleApplyPreset = (styleName: string) => {
-    const preset = STYLE_PRESETS[styleName];
+    const preset = allStyles[styleName];
     if (!preset) return;
     setSelectedStyle(styleName);
     setParams({ ...DEFAULT_PARAMS, ...preset.defaults });
@@ -71,9 +87,14 @@ function App() {
     URL.revokeObjectURL(url);
   };
 
-  const handleFontImportComplete = (fontData: unknown) => {
-    console.log('Font imported:', fontData);
-    // TODO: Add imported font to styles
+  const handleFontImportComplete = (fontData: ImportedFontPayload) => {
+    setImportedStyles((prev) => ({
+      ...prev,
+      [fontData.key]: fontData.style,
+    }));
+    setSelectedStyle(fontData.key);
+    setParams({ ...DEFAULT_PARAMS, ...fontData.style.defaults });
+    setPipelineVariationTick((v) => v + 1);
     setIsFontImportOpen(false);
   };
 
@@ -92,7 +113,7 @@ function App() {
         char={char}
         text={text}
         selectedStyle={selectedStyle}
-        styles={STYLE_NAMES}
+        styles={styleNames.length > 0 ? styleNames : STYLE_NAMES}
         onCharChange={setChar}
         onTextChange={setText}
         onStyleChange={handleApplyPreset}

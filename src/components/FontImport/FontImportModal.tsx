@@ -5,6 +5,7 @@ import { ReviewScreen } from './ReviewScreen';
 import { UploadZone } from './UploadZone';
 import { detectGridFromDataUrl, type OrderedCorners } from '../../utils/gridDetection';
 import { extractLetterCellsFromDataUrl, type ExtractedLetterCell } from '../../utils/cellExtraction';
+import { buildFontStyleFromExtractedCells } from '../../utils/fontAssembly';
 import './FontImport.css';
 
 type ImportStep = 'template' | 'upload' | 'detect' | 'extract' | 'review' | 'complete';
@@ -12,7 +13,11 @@ type ImportStep = 'template' | 'upload' | 'detect' | 'extract' | 'review' | 'com
 interface FontImportModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onImportComplete: (fontData: unknown) => void;
+  onImportComplete: (fontData: {
+    key: string;
+    style: import('../../engine/types').HandwritingStyle;
+    source: string;
+  }) => void;
 }
 
 export const FontImportModal: React.FC<FontImportModalProps> = ({
@@ -32,6 +37,7 @@ export const FontImportModal: React.FC<FontImportModalProps> = ({
   const [detectionStrategy, setDetectionStrategy] = useState('default');
   const [workingImage, setWorkingImage] = useState<string | null>(null);
   const [extractedLetters, setExtractedLetters] = useState<ExtractedLetterCell[]>([]);
+  const [fontName, setFontName] = useState('My Handwriting');
 
   const handleImageUpload = useCallback((_file: File, dataUrl: string) => {
     setUploadedImage(dataUrl);
@@ -104,16 +110,30 @@ export const FontImportModal: React.FC<FontImportModalProps> = ({
   }, []);
 
   const handleAcceptAll = useCallback(() => {
-    // TODO: Phase 6/7 - Convert extracted images to anchors and assemble style JSON
-    const mockFontData = {
-      name: 'My Handwriting',
-      source: 'scan',
-      letters: extractedLetters,
+    const run = async () => {
+      setIsProcessing(true);
+      setError(null);
+      setProgress(10);
+      try {
+        const built = await buildFontStyleFromExtractedCells(extractedLetters, {
+          name: fontName.trim() || 'My Handwriting',
+          key: fontName.trim() || 'my-handwriting',
+          source: 'scan',
+          anchorCount: 16,
+        });
+
+        setProgress(100);
+        onImportComplete(built);
+        setStep('complete');
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Failed to build font style.');
+      } finally {
+        setIsProcessing(false);
+      }
     };
 
-    onImportComplete(mockFontData);
-    setStep('complete');
-  }, [onImportComplete, extractedLetters]);
+    void run();
+  }, [onImportComplete, extractedLetters, fontName]);
 
   const handleBack = useCallback(() => {
     switch (step) {
@@ -147,6 +167,7 @@ export const FontImportModal: React.FC<FontImportModalProps> = ({
     setDetectionStrategy('default');
     setWorkingImage(null);
     setExtractedLetters([]);
+    setFontName('My Handwriting');
   }, []);
 
   const handleClose = useCallback(() => {
@@ -283,6 +304,15 @@ export const FontImportModal: React.FC<FontImportModalProps> = ({
               Letters extracted! Review them below. Letters with low confidence
               are highlighted in red.
             </p>
+            <div className="font-name-input-row">
+              <label htmlFor="font-name-input">Font name</label>
+              <input
+                id="font-name-input"
+                value={fontName}
+                onChange={(event) => setFontName(event.target.value)}
+                placeholder="My Handwriting"
+              />
+            </div>
             <ReviewScreen letters={extractedLetters} />
             <div className="import-actions">
               <button className="btn btn-secondary" onClick={handleBack}>
@@ -292,6 +322,19 @@ export const FontImportModal: React.FC<FontImportModalProps> = ({
                 Accept All & Import
               </button>
             </div>
+            {isProcessing && (
+              <div className="import-progress">
+                <div className="import-progress-bar">
+                  <div
+                    className="import-progress-fill"
+                    style={{ width: `${progress}%` }}
+                  />
+                </div>
+                <div className="import-progress-text">
+                  Building font style... {progress}%
+                </div>
+              </div>
+            )}
           </div>
         );
 
