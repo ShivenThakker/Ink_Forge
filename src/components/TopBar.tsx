@@ -8,6 +8,7 @@ interface TopBarProps {
   onStyleChange: (style: string) => void;
   onApplyPreset: (preset: string) => void;
   onExportSvg: () => void;
+  onOpenFontImport?: () => void;
 }
 
 export function TopBar({
@@ -20,6 +21,7 @@ export function TopBar({
   onStyleChange,
   onApplyPreset,
   onExportSvg,
+  onOpenFontImport,
 }: TopBarProps) {
   return (
     <header className="app-header">
@@ -62,6 +64,9 @@ export function TopBar({
           </button>
         ))}
       </div>
+      {onOpenFontImport && (
+        <button className="import-font-btn" onClick={onOpenFontImport}>Import Font</button>
+      )}
       <button className="export-btn" onClick={onExportSvg}>Export SVG</button>
     </header>
   );

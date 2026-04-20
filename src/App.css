@@ -65,7 +65,8 @@
 }
 
 .preset-buttons button,
-.export-btn {
+.export-btn,
+.import-font-btn {
   border: 1px solid #c8c8c8;
   background: #f7f7f7;
   color: #222;
@@ -76,8 +77,19 @@
 }
 
 .preset-buttons button:hover,
-.export-btn:hover {
+.export-btn:hover,
+.import-font-btn:hover {
   background: #ececec;
+}
+
+.import-font-btn {
+  background: #4a90d9;
+  color: white;
+  border-color: #3a7bc8;
+}
+
+.import-font-btn:hover {
+  background: #3a7bc8;
 }
 
 .char-input {

@@ -3,6 +3,7 @@ import { ControlPanel } from './components/ControlPanel';
 import { LetterEditor } from './components/LetterEditor';
 import { PreviewCanvas } from './components/PreviewCanvas';
 import { TopBar } from './components/TopBar';
+import { FontImportModal } from './components/FontImport';
 import type { HandwritingStyle, LetterDefinition } from './engine/types';
 import { DEFAULT_PARAMS } from './engine/types';
 import { renderTextToSvg } from './engine/renderer';
@@ -17,6 +18,7 @@ function App() {
   const [customLetters, setCustomLetters] = useState<Record<string, LetterDefinition>>({});
   const [pipelineVariationTick, setPipelineVariationTick] = useState(0);
   const [lockedVariationTick, setLockedVariationTick] = useState(0);
+  const [isFontImportOpen, setIsFontImportOpen] = useState(false);
 
   const handleExport = (definition: LetterDefinition) => {
     const normalizedChar = definition.char.toLowerCase();
@@ -69,6 +71,12 @@ function App() {
     URL.revokeObjectURL(url);
   };
 
+  const handleFontImportComplete = (fontData: unknown) => {
+    console.log('Font imported:', fontData);
+    // TODO: Add imported font to styles
+    setIsFontImportOpen(false);
+  };
+
   const editorChar = char.toLowerCase();
   const editorSourceStrokes = activeStyle.letters[editorChar]?.strokes ?? [];
   const editorSourceVersion = JSON.stringify(editorSourceStrokes);
@@ -90,6 +98,7 @@ function App() {
         onStyleChange={handleApplyPreset}
         onApplyPreset={handleApplyPreset}
         onExportSvg={handleExportSvg}
+        onOpenFontImport={() => setIsFontImportOpen(true)}
       />
 
       <section className="live-workspace">
@@ -138,6 +147,12 @@ function App() {
           <pre>{JSON.stringify(customLetters, null, 2)}</pre>
         </aside>
       )}
+
+      <FontImportModal
+        isOpen={isFontImportOpen}
+        onClose={() => setIsFontImportOpen(false)}
+        onImportComplete={handleFontImportComplete}
+      />
     </div>
   );
 }
