@@ -128,6 +128,49 @@ export const CV = {
 let cvInstance: OpenCV | null = null;
 let isLoading = false;
 const waitingQueue: { resolve: OpenCVResolve; reject: OpenCVReject }[] = [];
+const OPENCV_CDN_URL = '/opencv.js';
+
+function getGlobalScope(): { cv?: OpenCV; importScripts?: (...urls: string[]) => void } {
+  return globalThis as unknown as { cv?: OpenCV; importScripts?: (...urls: string[]) => void };
+}
+
+function resolveQueue(instance: OpenCV): void {
+  waitingQueue.forEach(({ resolve }) => resolve(instance));
+  waitingQueue.length = 0;
+}
+
+function rejectQueue(error: Error): void {
+  waitingQueue.forEach(({ reject }) => reject(error));
+  waitingQueue.length = 0;
+}
+
+async function waitForOpenCVGlobal(timeoutMs = 30000): Promise<OpenCV> {
+  const start = Date.now();
+
+  while (Date.now() - start < timeoutMs) {
+    const maybeCV = getGlobalScope().cv as OpenCV | Promise<OpenCV> | undefined;
+    if (maybeCV) {
+      if (typeof (maybeCV as Promise<OpenCV>).then === 'function') {
+        return await (maybeCV as Promise<OpenCV>);
+      }
+      return maybeCV;
+    }
+    await new Promise((resolve) => setTimeout(resolve, 50));
+  }
+
+  throw new Error('OpenCV.js load timeout');
+}
+
+async function loadOpenCVInWorker(): Promise<OpenCV> {
+  const response = await fetch(OPENCV_CDN_URL);
+  if (!response.ok) {
+    throw new Error(`Failed to fetch OpenCV.js: ${response.status}`);
+  }
+  const scriptText = await response.text();
+  (new Function(scriptText))();
+
+  return waitForOpenCVGlobal();
+}
 
 // Load OpenCV.js and return the cv object
 export async function loadOpenCV(): Promise<OpenCV> {
@@ -146,30 +189,49 @@ export async function loadOpenCV(): Promise<OpenCV> {
   isLoading = true;
 
   return new Promise((resolve, reject) => {
+    const globalScope = getGlobalScope();
+
     // Check if already loaded globally
-    if (typeof window !== 'undefined' && (window as unknown as { cv: OpenCV }).cv) {
-      cvInstance = (window as unknown as { cv: OpenCV }).cv;
+    if (globalScope.cv) {
+      cvInstance = globalScope.cv;
       isLoading = false;
       resolve(cvInstance);
       return;
     }
 
+    if (typeof document === 'undefined') {
+      loadOpenCVInWorker()
+        .then((cv) => {
+          cvInstance = cv;
+          isLoading = false;
+          resolveQueue(cv);
+          resolve(cv);
+        })
+        .catch((error) => {
+          isLoading = false;
+          const normalizedError = error instanceof Error ? error : new Error('Failed to load OpenCV.js');
+          rejectQueue(normalizedError);
+          reject(normalizedError);
+        });
+      return;
+    }
+
     // Create script element
     const script = document.createElement('script');
-    script.src = 'https://docs.opencv.org/4.x/opencv.js';
+    script.src = OPENCV_CDN_URL;
     script.async = true;
 
     script.onload = () => {
       // Wait for cv to be available (OpenCV.js sets it asynchronously)
       const checkCV = setInterval(() => {
-        if ((window as unknown as { cv: OpenCV }).cv) {
+        const maybeCV = getGlobalScope().cv;
+        if (maybeCV) {
           clearInterval(checkCV);
-          cvInstance = (window as unknown as { cv: OpenCV }).cv;
+          cvInstance = maybeCV;
           isLoading = false;
 
           // Resolve all waiting promises
-          waitingQueue.forEach(({ resolve }) => resolve(cvInstance!));
-          waitingQueue.length = 0;
+          resolveQueue(cvInstance);
 
           resolve(cvInstance);
         }
@@ -181,8 +243,7 @@ export async function loadOpenCV(): Promise<OpenCV> {
         if (!cvInstance) {
           isLoading = false;
           const error = new Error('OpenCV.js load timeout');
-          waitingQueue.forEach(({ reject }) => reject(error));
-          waitingQueue.length = 0;
+          rejectQueue(error);
           reject(error);
         }
       }, 30000);
@@ -191,8 +252,7 @@ export async function loadOpenCV(): Promise<OpenCV> {
     script.onerror = () => {
       isLoading = false;
       const error = new Error('Failed to load OpenCV.js');
-      waitingQueue.forEach(({ reject }) => reject(error));
-      waitingQueue.length = 0;
+      rejectQueue(error);
       reject(error);
     };
 
